@@ -901,41 +901,25 @@ function drawHUD() {
   const iconSpacing = Math.round(28 * iconScale);
   const topY        = scoreSize + 8;  // baseline for score numbers
 
-  // ── Top-left: PLAYER 1 label + score ────────────────────────────────────
+  // ── Top-left: score (no label) ───────────────────────────────────────────
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#888';
-  ctx.font      = `${labelSize}px monospace`;
-  ctx.fillText('PLAYER 1', 20, labelSize + 4);
-
   ctx.fillStyle = '#fff';
   ctx.font      = `bold ${scoreSize}px monospace`;
   setGlow(4);
-  ctx.fillText(String(score).padStart(6, '0'), 20, topY + labelSize + 2);
+  ctx.fillText(String(score).padStart(6, '0'), 20, topY);
   clearGlow();
 
-  // ── Top-center: HI SCORE label + number ─────────────────────────────────
+  // ── Top-center: hi-score number only (small, muted) ──────────────────────
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#888';
+  ctx.fillStyle = '#555';
   ctx.font      = `${labelSize}px monospace`;
-  ctx.fillText('HI SCORE', W / 2, labelSize + 4);
+  ctx.fillText(String(hiScore).padStart(6, '0'), W / 2, labelSize + 4);
 
-  ctx.fillStyle = '#fff';
-  ctx.font      = `bold ${scoreSize}px monospace`;
-  setGlow(4);
-  ctx.fillText(String(hiScore).padStart(6, '0'), W / 2, topY + labelSize + 2);
-  clearGlow();
-
-  // ── Top-right: PLAYER 2 label + 00000 (always 0 — single player fixture) ─
+  // ── Top-right: WAVE number ────────────────────────────────────────────────
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#888';
+  ctx.fillStyle = '#444';
   ctx.font      = `${labelSize}px monospace`;
-  ctx.fillText('PLAYER 2', W - 20, labelSize + 4);
-
-  ctx.fillStyle = '#555';  // dimmed — inactive player
-  ctx.font      = `bold ${scoreSize}px monospace`;
-  setGlow(4);
-  ctx.fillText('00000', W - 20, topY + labelSize + 2);
-  clearGlow();
+  ctx.fillText('WAVE ' + wave, W - 20, labelSize + 4);
 
   // ── Bottom-left: life ship icons ─────────────────────────────────────────
   const iconY = H - 24;
@@ -1065,7 +1049,7 @@ function drawTitle() {
   ctx.font = `${Math.min(20, W * 0.033)}px monospace`;
   ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE OR ENTER', W / 2, H * 0.44);
 
-  ctx.fillStyle = '#555';
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.font = '14px monospace';
   ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.53);
 
