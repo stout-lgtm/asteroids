@@ -222,19 +222,16 @@ const sfx = {
   shoot() {
     if (!audioCtx) return;
     const t   = audioCtx.currentTime;
-    // Short noise burst through a bandpass — analog capacitor discharge
-    const src = audioCtx.createBufferSource();
-    src.buffer = makeNoiseBuf(0.06);
-    const bp = audioCtx.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.setValueAtTime(1800, t);
-    bp.frequency.exponentialRampToValueAtTime(300, t + 0.035);
-    bp.Q.value = 0.8;
+    // "Pew" laser: quick descending sine tone, high→low frequency sweep
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(110, t + 0.12);
     const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0.55, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
-    src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
-    src.start(t); src.stop(t + 0.065);
+    g.gain.setValueAtTime(0.28, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.13);
   },
 
   explode(size) {
@@ -780,14 +777,11 @@ function drawBullet(b) {
   const ny = b.vy / spd;
 
   ctx.save();
-  setGlow(8);
-  ctx.strokeStyle = b.isUFO ? '#f55' : '#fff';
-  ctx.lineWidth   = 2;
-  ctx.lineCap     = 'round';
+  setGlow(10);
+  ctx.fillStyle = b.isUFO ? '#f55' : '#fff';
   ctx.beginPath();
-  ctx.moveTo(b.x, b.y);
-  ctx.lineTo(b.x - nx * BULLET_LEN, b.y - ny * BULLET_LEN);
-  ctx.stroke();
+  ctx.arc(b.x, b.y, 2.2, 0, TAU);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -821,10 +815,10 @@ function drawParticle(p) {
 // ─── Debris shards ────────────────────────────────────────────────────────────
 function spawnShards(x, y, size) {
   const cfg = {
-    large:  { count: 6, len: 18, spd: 90,  life: 0.45 },
-    medium: { count: 5, len: 12, spd: 110, life: 0.35 },
-    small:  { count: 3, len:  7, spd: 130, life: 0.22 },
-  }[size] || { count: 4, len: 10, spd: 100, life: 0.3 };
+    large:  { count: 12, len: 6, spd: 100, life: 0.50 },
+    medium: { count:  8, len: 4, spd: 120, life: 0.38 },
+    small:  { count:  5, len: 3, spd: 150, life: 0.25 },
+  }[size] || { count: 6, len: 4, spd: 110, life: 0.35 };
   for (let i = 0; i < cfg.count; i++) {
     const angle = rand(0, TAU);
     const speed = rand(cfg.spd * 0.6, cfg.spd * 1.4);
