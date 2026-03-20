@@ -222,40 +222,80 @@ const sfx = {
   shoot() {
     if (!audioCtx) return;
     const t   = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const g   = audioCtx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(500, t);
-    osc.frequency.exponentialRampToValueAtTime(80, t + 0.13);
-    g.gain.setValueAtTime(0.32, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + 0.14);
+    // Short noise burst through a bandpass — analog capacitor discharge
+    const src = audioCtx.createBufferSource();
+    src.buffer = makeNoiseBuf(0.06);
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(1800, t);
+    bp.frequency.exponentialRampToValueAtTime(300, t + 0.035);
+    bp.Q.value = 0.8;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.55, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
+    src.start(t); src.stop(t + 0.065);
   },
 
   explode(size) {
     if (!audioCtx) return;
-    const cfg = {
-      large:  { dur: 1.1, freq: 80,  vol: 0.75, type: 'lowpass'  },
-      medium: { dur: 0.6, freq: 180, vol: 0.5,  type: 'lowpass'  },
-      small:  { dur: 0.3, freq: 600, vol: 0.35, type: 'bandpass' },
-    }[size] || { dur: 0.9, freq: 100, vol: 0.7, type: 'lowpass' };
-
-    const t   = audioCtx.currentTime;
-    const src = audioCtx.createBufferSource();
-    src.buffer = makeNoiseBuf(cfg.dur);
-
-    const filt = audioCtx.createBiquadFilter();
-    filt.type = cfg.type;
-    filt.frequency.setValueAtTime(cfg.freq * 4, t);
-    filt.frequency.exponentialRampToValueAtTime(cfg.freq, t + cfg.dur);
-
-    const g = audioCtx.createGain();
-    g.gain.setValueAtTime(cfg.vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + cfg.dur);
-
-    src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
-    src.start(t); src.stop(t + cfg.dur + 0.02);
+    const t = audioCtx.currentTime;
+    if (size === 'large') {
+      // Deep bass BOOM — instant attack, ~1s decay, heavy
+      const dur  = 1.0;
+      const src1 = audioCtx.createBufferSource();
+      src1.buffer = makeNoiseBuf(dur);
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(6000, t);
+      lp.frequency.exponentialRampToValueAtTime(55, t + dur);
+      const g1 = audioCtx.createGain();
+      g1.gain.setValueAtTime(0.9, t);
+      g1.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src1.connect(lp); lp.connect(g1); g1.connect(audioCtx.destination);
+      src1.start(t); src1.stop(t + dur + 0.05);
+      // Second layer: mid crunch gives it "crack"
+      const src2 = audioCtx.createBufferSource();
+      src2.buffer = makeNoiseBuf(0.18);
+      const bp2 = audioCtx.createBiquadFilter();
+      bp2.type = 'bandpass';
+      bp2.frequency.value = 400;
+      bp2.Q.value = 1.2;
+      const g2 = audioCtx.createGain();
+      g2.gain.setValueAtTime(0.5, t);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      src2.connect(bp2); bp2.connect(g2); g2.connect(audioCtx.destination);
+      src2.start(t); src2.stop(t + 0.2);
+    } else if (size === 'medium') {
+      // Mid-range BANG — shorter, snappier
+      const dur = 0.45;
+      const src = audioCtx.createBufferSource();
+      src.buffer = makeNoiseBuf(dur);
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(4000, t);
+      lp.frequency.exponentialRampToValueAtTime(120, t + dur);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.65, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+      src.start(t); src.stop(t + dur + 0.02);
+    } else {
+      // Small rock: very brief high "TICK" — 80ms max
+      const dur = 0.08;
+      const src = audioCtx.createBufferSource();
+      src.buffer = makeNoiseBuf(dur + 0.02);
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(3200, t);
+      bp.frequency.exponentialRampToValueAtTime(800, t + dur);
+      bp.Q.value = 1.5;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.4, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
+      src.start(t); src.stop(t + dur + 0.02);
+    }
   },
 
   beat(freq) {
@@ -285,11 +325,11 @@ const sfx = {
 
     const lpf = audioCtx.createBiquadFilter();
     lpf.type = 'lowpass';
-    lpf.frequency.value = 210;
+    lpf.frequency.value = 90;
 
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.28, t + 0.06);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.06);
 
     src.connect(lpf); lpf.connect(g); g.connect(audioCtx.destination);
     src.start(t);
@@ -311,25 +351,22 @@ const sfx = {
   _ufoLfo:  null,
   _ufoGain: null,
 
-  ufoStart() {
+  ufoStart(type) {
     if (!audioCtx || this._ufoOsc) return;
-    const t   = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.value = 160;
-
-    // LFO wobbles the frequency up and down — classic UFO warble
-    const lfo    = audioCtx.createOscillator();
+    const t     = audioCtx.currentTime;
+    const isBig = type !== 'small';
+    const osc   = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = isBig ? 200 : 550;
+    const lfo     = audioCtx.createOscillator();
     const lfoGain = audioCtx.createGain();
-    lfo.frequency.value = 5;
-    lfoGain.gain.value  = 45;
+    lfo.frequency.value  = isBig ? 3 : 8;
+    lfoGain.gain.value   = isBig ? 60 : 80;
     lfo.connect(lfoGain);
     lfoGain.connect(osc.frequency);
-
     const g = audioCtx.createGain();
-    g.gain.value = 0.14;
+    g.gain.value = isBig ? 0.10 : 0.08;
     osc.connect(g); g.connect(audioCtx.destination);
-
     osc.start(t); lfo.start(t);
     this._ufoOsc  = osc;
     this._ufoLfo  = lfo;
@@ -1441,7 +1478,7 @@ function loop(ts) {
       ufoTimer    = 0;
     }
     if (ufo) { updateUFO(ufo, dt); if (ufo.dead) { sfx.ufoStop(); ufo = null; } }
-    if (!ufoWasAlive && ufo)  sfx.ufoStart();
+    if (!ufoWasAlive && ufo)  sfx.ufoStart(ufo.type);
 
     // Wave clear
     if (asteroids.length === 0 && !ufo) {
