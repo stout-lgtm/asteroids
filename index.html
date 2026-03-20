@@ -921,15 +921,17 @@ function drawHUD() {
   ctx.font      = `${labelSize}px monospace`;
   ctx.fillText('WAVE ' + wave, W - 20, labelSize + 4);
 
-  // ── Bottom-left: life ship icons ─────────────────────────────────────────
-  const iconY = H - 24;
+  // ── Below score: life ship icons (slightly smaller) ──────────────────────
+  const lifeScale   = iconScale * 0.72;
+  const lifeSpacing = Math.round(24 * lifeScale);
+  const lifeIconY   = topY + lifeSpacing + 6;
   for (let i = 0; i < lives; i++) {
     ctx.save();
-    ctx.translate(20 + iconSpacing * 0.5 + i * iconSpacing, iconY);
+    ctx.translate(20 + lifeSpacing * 0.5 + i * lifeSpacing, lifeIconY);
     ctx.rotate(-Math.PI / 2);
     ctx.strokeStyle = '#fff';
-    ctx.lineWidth   = 1.5;
-    const s = SHIP_SIZE * iconScale;
+    ctx.lineWidth   = 1.2;
+    const s = SHIP_SIZE * lifeScale;
     ctx.beginPath();
     ctx.moveTo(0, -s * 0.7);
     ctx.lineTo(-s * 0.42,  s * 0.52);
