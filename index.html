@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Asteroids</title>
+<title>Asteroids 1979</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #000; overflow: hidden; width: 100vw; height: 100vh; }
@@ -120,8 +120,14 @@ const LB_KEY = 'asteroidsLeaderboard';
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
 function resumeAudio() {
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (audioCtx.state === 'suspended') return audioCtx.resume();
+  return Promise.resolve();
 }
+
+// iOS Safari requires AudioContext to be unlocked on first user gesture
+// at the document level — belt-and-suspenders alongside per-event calls
+document.addEventListener('touchstart', () => resumeAudio(), { once: true, passive: true });
+document.addEventListener('touchend',   () => resumeAudio(), { once: true, passive: true });
 
 // Build a buffer of white noise (reusable for explosions / thrust)
 function makeNoiseBuf(seconds) {
@@ -1045,7 +1051,7 @@ function drawTitle() {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fff';
   ctx.font = `bold ${Math.min(80, W * 0.13)}px monospace`;
-  ctx.fillText('ASTEROIDS', W / 2, H * 0.28);
+  ctx.fillText('ASTEROIDS 1979', W / 2, H * 0.28);
 
   ctx.fillStyle = '#fff';
   ctx.font = `${Math.min(20, W * 0.033)}px monospace`;
