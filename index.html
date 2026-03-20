@@ -11,10 +11,53 @@ canvas { display: block; touch-action: none; }
 /* Invisible input used only to pull up mobile keyboard during name entry */
 #nameForm { position: fixed; top: 50%; left: 50%; width: 0; height: 0; overflow: hidden; }
 #nameInput { opacity: 0; width: 1px; height: 1px; border: none; background: none; color: transparent; }
+
+/* Audio unlock splash — mobile only */
+#splash {
+  display: none;
+  position: fixed; inset: 0;
+  background: #000;
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+#splash .s-title {
+  font: bold clamp(40px, 10vw, 72px) monospace;
+  letter-spacing: 0.05em;
+}
+#splash .s-year  {
+  font: bold clamp(40px, 10vw, 72px) monospace;
+  color: #FFD700;
+  letter-spacing: 0.05em;
+}
+#splash .s-tap   {
+  margin-top: 60px;
+  font: clamp(18px, 4vw, 28px) monospace;
+  color: #fff;
+  animation: blink 1.1s step-start infinite;
+}
+#splash .s-sub   {
+  margin-top: 16px;
+  font: clamp(11px, 2.5vw, 15px) monospace;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.08em;
+}
+@keyframes blink { 50% { opacity: 0; } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="splash">
+  <div style="display:flex;gap:0.18em;align-items:baseline;">
+    <span class="s-title">ASTEROIDS</span><span class="s-year">&nbsp;1979</span>
+  </div>
+  <div class="s-tap">TAP TO PLAY</div>
+  <div class="s-sub">ENABLES GAME AUDIO</div>
+</div>
 <form id="nameForm" autocomplete="off">
   <input id="nameInput" type="text" maxlength="12"
     autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
@@ -124,10 +167,31 @@ function resumeAudio() {
   return Promise.resolve();
 }
 
-// iOS Safari requires AudioContext to be unlocked on first user gesture
-// at the document level — belt-and-suspenders alongside per-event calls
-document.addEventListener('touchstart', () => resumeAudio(), { once: true, passive: true });
-document.addEventListener('touchend',   () => resumeAudio(), { once: true, passive: true });
+// ── Splash / audio-unlock screen (mobile only) ───────────────────────────────
+const splash   = document.getElementById('splash');
+const isMobileAudio = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+function unlockAudio() {
+  // Resume AudioContext inside the user gesture — the key iOS requirement
+  audioCtx.resume().then(() => {
+    // Play a silent buffer to fully wake the audio engine on iOS
+    const silentBuf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+    const src = audioCtx.createBufferSource();
+    src.buffer = silentBuf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+  });
+  // Fade splash out
+  splash.style.transition = 'opacity 0.4s';
+  splash.style.opacity    = '0';
+  setTimeout(() => { splash.style.display = 'none'; }, 420);
+}
+
+if (isMobileAudio) {
+  splash.style.display = 'flex';
+  splash.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+  splash.addEventListener('click',      unlockAudio, { once: true });
+}
 
 // Build a buffer of white noise (reusable for explosions / thrust)
 function makeNoiseBuf(seconds) {
