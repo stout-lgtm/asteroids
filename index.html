@@ -192,7 +192,8 @@ function unlockAudio() {
   setTimeout(() => { splash.style.display = 'none'; }, 420);
 }
 
-if (isMobileAudio) {
+const isMobileDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+if (isMobileDevice) {
   splash.style.display = 'flex';
   splash.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
   splash.addEventListener('click',      unlockAudio, { once: true });
@@ -200,8 +201,9 @@ if (isMobileAudio) {
 
 // Build a buffer of white noise (reusable for explosions / thrust)
 function makeNoiseBuf(seconds) {
-  const len = Math.ceil(audioCtx.sampleRate * seconds);
-  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const ac  = ensureAudioCtx();
+  const len = Math.ceil(ac.sampleRate * seconds);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
   const d   = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   return buf;
