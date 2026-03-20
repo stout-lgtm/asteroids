@@ -27,6 +27,7 @@ canvas { display: block; touch-action: none; }
 }
 #splash .s-title {
   font: bold clamp(40px, 10vw, 72px) monospace;
+  color: #fff;
   letter-spacing: 0.05em;
 }
 #splash .s-year  {
@@ -160,27 +161,30 @@ const MAX_LB_ENTRIES = 10;
 const LB_KEY = 'asteroidsLeaderboard';
 
 // ─── Audio Engine ────────────────────────────────────────────────────────────
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+// On iOS, AudioContext MUST be created synchronously inside a user gesture.
+// We detect mobile first and defer creation until the splash tap.
+// On desktop, create immediately (Chrome/Firefox have no restriction).
+const isMobileAudio = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+let audioCtx = isMobileAudio ? null
+  : new (window.AudioContext || window.webkitAudioContext)();
 
 function resumeAudio() {
+  if (!audioCtx) return Promise.resolve();
   if (audioCtx.state === 'suspended') return audioCtx.resume();
   return Promise.resolve();
 }
 
 // ── Splash / audio-unlock screen (mobile only) ───────────────────────────────
-const splash   = document.getElementById('splash');
-const isMobileAudio = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+const splash = document.getElementById('splash');
 
 function unlockAudio() {
-  // Resume AudioContext inside the user gesture — the key iOS requirement
-  audioCtx.resume().then(() => {
-    // Play a silent buffer to fully wake the audio engine on iOS
-    const silentBuf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
-    const src = audioCtx.createBufferSource();
-    src.buffer = silentBuf;
-    src.connect(audioCtx.destination);
-    src.start(0);
-  });
+  if (!audioCtx) {
+    // Create INSIDE the gesture — this is what iOS requires for audio to work
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // New context created in a gesture starts in 'running' state automatically
+  } else {
+    audioCtx.resume();
+  }
   // Fade splash out
   splash.style.transition = 'opacity 0.4s';
   splash.style.opacity    = '0';
@@ -202,14 +206,18 @@ function makeNoiseBuf(seconds) {
   return buf;
 }
 
-// Long loopable noise buffer created once for thrust
-const THRUST_BUF = makeNoiseBuf(3);
+// Long loopable noise buffer — created lazily on first use so audioCtx exists
+let _thrustBuf = null;
+function getThrustBuf() {
+  if (!_thrustBuf) _thrustBuf = makeNoiseBuf(3);
+  return _thrustBuf;
+}
 
 const sfx = {
   // ── one-shot sounds ──────────────────────────────────────────────────────
 
   shoot() {
-    // Classic descending-sine "thwack"
+    if (!audioCtx) return;
     const t   = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const g   = audioCtx.createGain();
@@ -223,7 +231,7 @@ const sfx = {
   },
 
   explode(size) {
-    // Noise burst: pitch and duration scale with asteroid size
+    if (!audioCtx) return;
     const cfg = {
       large:  { dur: 1.1, freq: 80,  vol: 0.75, type: 'lowpass'  },
       medium: { dur: 0.6, freq: 180, vol: 0.5,  type: 'lowpass'  },
@@ -248,7 +256,7 @@ const sfx = {
   },
 
   beat(freq) {
-    // Low bass pulse — alternated between two frequencies for the heartbeat
+    if (!audioCtx) return;
     const t   = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const g   = audioCtx.createGain();
@@ -266,10 +274,10 @@ const sfx = {
   _thrustGain: null,
 
   thrustOn() {
-    if (this._thrustGain) return;
+    if (!audioCtx || this._thrustGain) return;
     const t   = audioCtx.currentTime;
     const src = audioCtx.createBufferSource();
-    src.buffer = THRUST_BUF;
+    src.buffer = getThrustBuf();
     src.loop   = true;
 
     const lpf = audioCtx.createBiquadFilter();
@@ -301,7 +309,7 @@ const sfx = {
   _ufoGain: null,
 
   ufoStart() {
-    if (this._ufoOsc) return;
+    if (!audioCtx || this._ufoOsc) return;
     const t   = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     osc.type = 'sawtooth';
