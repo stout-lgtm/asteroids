@@ -1048,10 +1048,21 @@ function drawTitle() {
   for (const a of asteroids) drawAsteroid(a);
   for (const p of particles) drawParticle(p);
 
-  ctx.textAlign = 'center';
+  // Title: "ASTEROIDS" white + " 1979" arcade yellow, centered together
+  const titleSize = Math.min(62, W * 0.09);
+  ctx.font = `bold ${titleSize}px monospace`;
+  const w1 = ctx.measureText('ASTEROIDS').width;
+  const w2 = ctx.measureText(' 1979').width;
+  const titleX = W / 2 - (w1 + w2) / 2;
+  const titleY = H * 0.28;
+  setGlow(6);
   ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.min(62, W * 0.09)}px monospace`;
-  ctx.fillText('ASTEROIDS 1979', W / 2, H * 0.28);
+  ctx.textAlign = 'left';
+  ctx.fillText('ASTEROIDS', titleX, titleY);
+  ctx.fillStyle = '#FFD700';
+  ctx.fillText(' 1979', titleX + w1, titleY);
+  clearGlow();
+  ctx.textAlign = 'center';
 
   ctx.fillStyle = '#fff';
   ctx.font = `${Math.min(20, W * 0.033)}px monospace`;
