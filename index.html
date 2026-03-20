@@ -161,15 +161,20 @@ const MAX_LB_ENTRIES = 10;
 const LB_KEY = 'asteroidsLeaderboard';
 
 // ─── Audio Engine ────────────────────────────────────────────────────────────
-// On iOS, AudioContext MUST be created synchronously inside a user gesture.
-// We detect mobile first and defer creation until the splash tap.
-// On desktop, create immediately (Chrome/Firefox have no restriction).
-const isMobileAudio = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-let audioCtx = isMobileAudio ? null
-  : new (window.AudioContext || window.webkitAudioContext)();
+// audioCtx is ALWAYS null at load — created lazily inside the first user gesture.
+// This is the only approach that reliably unlocks audio on iOS Safari.
+// Desktop browsers (Chrome/Firefox) impose no restriction on when it's created.
+let audioCtx = null;
+
+function ensureAudioCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
 
 function resumeAudio() {
-  if (!audioCtx) return Promise.resolve();
+  ensureAudioCtx();
   if (audioCtx.state === 'suspended') return audioCtx.resume();
   return Promise.resolve();
 }
@@ -178,19 +183,16 @@ function resumeAudio() {
 const splash = document.getElementById('splash');
 
 function unlockAudio() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  // iOS requires actual audio to be played synchronously inside the gesture —
-  // creating the context alone is not enough. Fire a near-silent tone now.
+  const ac = ensureAudioCtx();
+  // iOS requires audio to actually be scheduled inside the gesture.
+  // Use the canonical empty-buffer unlock pattern (most compatible across iOS versions).
   try {
-    const g   = audioCtx.createGain();
-    g.gain.value = 0.001;          // inaudible but real
-    g.connect(audioCtx.destination);
-    const osc = audioCtx.createOscillator();
-    osc.connect(g);
-    osc.start(0);
-    osc.stop(audioCtx.currentTime + 0.1);
+    const buf = ac.createBuffer(1, 1, ac.sampleRate);
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.connect(ac.destination);
+    src.start(0);
+    if (ac.state === 'suspended') ac.resume();
   } catch (_) {}
 
   // Fade splash out
@@ -1128,19 +1130,32 @@ function drawTitle() {
   for (const a of asteroids) drawAsteroid(a);
   for (const p of particles) drawParticle(p);
 
-  // Title: "ASTEROIDS" white + " 1979" arcade yellow, centered together
+  // Title: "ASTEROIDS" fades out over time, "1979" stays solid in arcade yellow
   const titleSize = Math.min(62, W * 0.09);
   ctx.font = `bold ${titleSize}px monospace`;
   const w1 = ctx.measureText('ASTEROIDS').width;
   const w2 = ctx.measureText(' 1979').width;
-  const titleX = W / 2 - (w1 + w2) / 2;
-  const titleY = H * 0.28;
+  // As "ASTEROIDS" fades, slide "1979" toward center
+  const fullX   = W / 2 - (w1 + w2) / 2;       // left edge when both visible
+  const soloX   = W / 2 - w2 / 2;               // left edge when solo
+  const yearX   = fullX + w1 + (soloX - fullX - w1 + w2 / 2 - w2 / 2) * (1 - titleNameAlpha);
+  const titleY  = H * 0.28;
+
   setGlow(6);
-  ctx.fillStyle = '#fff';
   ctx.textAlign = 'left';
-  ctx.fillText('ASTEROIDS', titleX, titleY);
+
+  // "ASTEROIDS" — fades out
+  if (titleNameAlpha > 0) {
+    ctx.globalAlpha = titleNameAlpha;
+    ctx.fillStyle   = '#fff';
+    ctx.fillText('ASTEROIDS', fullX, titleY);
+    ctx.globalAlpha = 1;
+  }
+
+  // "1979" — always solid, drifts to center as name fades
   ctx.fillStyle = '#FFD700';
-  ctx.fillText(' 1979', titleX + w1, titleY);
+  ctx.fillText(' 1979', titleNameAlpha > 0 ? fullX + w1 : soloX, titleY);
+
   clearGlow();
   ctx.textAlign = 'center';
 
@@ -1343,12 +1358,17 @@ function startGame() {
   state = 'playing';
 }
 
+let titleNameAlpha     = 1;    // opacity of "ASTEROIDS" — fades to 0
+let titleNameFadeDelay = 2.2;  // seconds before fade begins
+
 function initTitle() {
   sfx.stopAll();
   wave      = 1;  // needed by makeAsteroid speed formula
   asteroids = [];
   particles = [];
   bullets   = [];
+  titleNameAlpha     = 1;
+  titleNameFadeDelay = 2.2;
   for (let i = 0; i < 6; i++) {
     asteroids.push(makeAsteroid(rand(0, canvas.width), rand(0, canvas.height), 'large'));
   }
@@ -1368,6 +1388,12 @@ function loop(ts) {
     for (const a of asteroids) updateAsteroid(a, dt);
     for (const p of particles) updateParticle(p, dt);
     particles = particles.filter(p => p.life > 0);
+    // Fade "ASTEROIDS" out after a delay, leaving just "1979"
+    if (titleNameFadeDelay > 0) {
+      titleNameFadeDelay -= dt;
+    } else {
+      titleNameAlpha = Math.max(0, titleNameAlpha - dt * 0.55);
+    }
     drawTitle();
     return;
   }
