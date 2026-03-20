@@ -108,7 +108,7 @@ const BULLET_SPEED     = 520;
 const BULLET_LIFE      = 1.4;   // player bullet lifetime
 const UFO_BULLET_LIFE  = 2.4;   // UFO bullets travel further
 const BULLET_LEN       = 9;     // longer streak reduces horizontal/vertical illusion
-const FIRE_COOLDOWN = 0.18;
+const FIRE_COOLDOWN = 0.26;
 const THRUST_POWER  = 420;
 const ROTATION_SPD  = 3.2;  // rad/s
 const FRICTION      = 0.97;
@@ -221,17 +221,18 @@ const sfx = {
 
   shoot() {
     if (!audioCtx) return;
-    const t   = audioCtx.currentTime;
-    // "Pew" laser: quick descending sine tone, high→low frequency sweep
+    const t = audioCtx.currentTime;
+    // Authentic 1979 circuit: 555 timer square wave, frequency AND amplitude
+    // both decay exponentially and simultaneously over ~80ms — "thwack-pew"
     const osc = audioCtx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, t);
-    osc.frequency.exponentialRampToValueAtTime(110, t + 0.12);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1200, t);
+    osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
     const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0.28, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    g.gain.setValueAtTime(0.38, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
     osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + 0.13);
+    osc.start(t); osc.stop(t + 0.09);
   },
 
   explode(size) {
