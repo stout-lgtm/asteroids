@@ -179,12 +179,20 @@ const splash = document.getElementById('splash');
 
 function unlockAudio() {
   if (!audioCtx) {
-    // Create INSIDE the gesture — this is what iOS requires for audio to work
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    // New context created in a gesture starts in 'running' state automatically
-  } else {
-    audioCtx.resume();
   }
+  // iOS requires actual audio to be played synchronously inside the gesture —
+  // creating the context alone is not enough. Fire a near-silent tone now.
+  try {
+    const g   = audioCtx.createGain();
+    g.gain.value = 0.001;          // inaudible but real
+    g.connect(audioCtx.destination);
+    const osc = audioCtx.createOscillator();
+    osc.connect(g);
+    osc.start(0);
+    osc.stop(audioCtx.currentTime + 0.1);
+  } catch (_) {}
+
   // Fade splash out
   splash.style.transition = 'opacity 0.4s';
   splash.style.opacity    = '0';
