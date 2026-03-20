@@ -104,9 +104,10 @@ function drawStars() {
 // ─── Constants ───────────────────────────────────────────────────────────────
 const TAU          = Math.PI * 2;
 const SHIP_SIZE    = 18;
-const BULLET_SPEED = 520;
-const BULLET_LIFE  = 1.4;   // extended from 0.85 → longer range
-const BULLET_LEN   = 4;     // short dot — authentic to original vector display
+const BULLET_SPEED     = 520;
+const BULLET_LIFE      = 1.4;   // player bullet lifetime
+const UFO_BULLET_LIFE  = 2.4;   // UFO bullets travel further
+const BULLET_LEN       = 9;     // longer streak reduces horizontal/vertical illusion
 const FIRE_COOLDOWN = 0.18;
 const THRUST_POWER  = 420;
 const ROTATION_SPD  = 3.2;  // rad/s
@@ -731,7 +732,7 @@ function fireBullet(from, angle, isUFO) {
     y:     from.y + Math.sin(angle) * SHIP_SIZE * 1.2,
     vx:    Math.cos(angle) * BULLET_SPEED + (isUFO ? 0 : from.vx),
     vy:    Math.sin(angle) * BULLET_SPEED + (isUFO ? 0 : from.vy),
-    life:  BULLET_LIFE,
+    life:  isUFO ? UFO_BULLET_LIFE : BULLET_LIFE,
     isUFO,
   });
 }
