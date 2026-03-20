@@ -226,72 +226,73 @@ const sfx = {
     // both decay exponentially and simultaneously over ~80ms — "thwack-pew"
     const osc = audioCtx.createOscillator();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(1200, t);
-    osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+    osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(130, t + 0.09);
     const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0.38, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    g.gain.setValueAtTime(0.36, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
     osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + 0.09);
+    osc.start(t); osc.stop(t + 0.10);
   },
 
   explode(size) {
     if (!audioCtx) return;
     const t = audioCtx.currentTime;
     if (size === 'large') {
-      // Deep bass BOOM — instant attack, ~1s decay, heavy
-      const dur  = 1.0;
+      // Deep BOOM — filter starts low so it blooms rather than slaps
+      const dur  = 1.2;
       const src1 = audioCtx.createBufferSource();
       src1.buffer = makeNoiseBuf(dur);
       const lp = audioCtx.createBiquadFilter();
       lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(6000, t);
-      lp.frequency.exponentialRampToValueAtTime(55, t + dur);
+      lp.frequency.setValueAtTime(900, t);        // start low — no slap transient
+      lp.frequency.exponentialRampToValueAtTime(40, t + dur);
       const g1 = audioCtx.createGain();
-      g1.gain.setValueAtTime(0.9, t);
+      g1.gain.setValueAtTime(0.0, t);
+      g1.gain.linearRampToValueAtTime(1.0, t + 0.01); // 10ms attack — bloom not click
       g1.gain.exponentialRampToValueAtTime(0.001, t + dur);
       src1.connect(lp); lp.connect(g1); g1.connect(audioCtx.destination);
       src1.start(t); src1.stop(t + dur + 0.05);
-      // Second layer: mid crunch gives it "crack"
+      // Second layer: low rumble body
       const src2 = audioCtx.createBufferSource();
-      src2.buffer = makeNoiseBuf(0.18);
+      src2.buffer = makeNoiseBuf(0.3);
       const bp2 = audioCtx.createBiquadFilter();
       bp2.type = 'bandpass';
-      bp2.frequency.value = 400;
-      bp2.Q.value = 1.2;
+      bp2.frequency.value = 160;
+      bp2.Q.value = 0.7;
       const g2 = audioCtx.createGain();
       g2.gain.setValueAtTime(0.5, t);
-      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
       src2.connect(bp2); bp2.connect(g2); g2.connect(audioCtx.destination);
-      src2.start(t); src2.stop(t + 0.2);
+      src2.start(t); src2.stop(t + 0.32);
     } else if (size === 'medium') {
-      // Mid-range BANG — shorter, snappier
-      const dur = 0.45;
+      // Mid BANG — starts warmer, not sharp
+      const dur = 0.6;
       const src = audioCtx.createBufferSource();
       src.buffer = makeNoiseBuf(dur);
       const lp = audioCtx.createBiquadFilter();
       lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(4000, t);
-      lp.frequency.exponentialRampToValueAtTime(120, t + dur);
+      lp.frequency.setValueAtTime(1400, t);
+      lp.frequency.exponentialRampToValueAtTime(80, t + dur);
       const g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.65, t);
+      g.gain.setValueAtTime(0.0, t);
+      g.gain.linearRampToValueAtTime(0.7, t + 0.008);
       g.gain.exponentialRampToValueAtTime(0.001, t + dur);
       src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
       src.start(t); src.stop(t + dur + 0.02);
     } else {
-      // Small rock: very brief high "TICK" — 80ms max
-      const dur = 0.08;
+      // Small rock: short mid-low thud — lowpass not bandpass, no resonant slap
+      const dur = 0.15;
       const src = audioCtx.createBufferSource();
       src.buffer = makeNoiseBuf(dur + 0.02);
-      const bp = audioCtx.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.setValueAtTime(3200, t);
-      bp.frequency.exponentialRampToValueAtTime(800, t + dur);
-      bp.Q.value = 1.5;
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2000, t);
+      lp.frequency.exponentialRampToValueAtTime(200, t + dur);
       const g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.4, t);
+      g.gain.setValueAtTime(0.35, t);
       g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
+      src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
       src.start(t); src.stop(t + dur + 0.02);
     }
   },
