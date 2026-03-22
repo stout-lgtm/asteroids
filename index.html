@@ -292,6 +292,47 @@ const THEMES = {
     sfxUfoBigFreq:      260,
     sfxUfoSmallFreq:    680,
   },
+
+  feudalJapan: {
+    id: 'feudalJapan',
+    name: 'FEUDAL JAPAN',
+    // ── Colors — ink-brush woodblock palette ─────────────────────
+    bgColor:          '#0a0705',
+    shipColor:        '#e8d5a3',
+    shipGlow:         10,
+    thrustColor:      '#cc4400',
+    asteroidColor:    '#8b7355',
+    asteroidGlow:     7,
+    bulletColor:      '#e8c87a',
+    bulletGlow:       12,
+    ufoColor:         '#cc2200',
+    ufoGlow:          10,
+    shardColor:       '#c8a96e',
+    shardGlow:        8,
+    particleColor:    '#e8d5a3',
+    starColor:        '#d4b896',
+    hudScoreColor:    '#e8d5a3',
+    hudHiColor:       '#7a6040',
+    hudWaveColor:     '#5c4830',
+    hudLifeColor:     '#e8d5a3',
+    extraLifeColor:   '#cc4400',
+    // ── Stars — sparse, warm, parchment-tinted ────────────────────
+    starCount:        80,
+    starMinAlpha:     0.2,
+    starMaxAlpha:     0.55,
+    starAnimate:      false,
+    // ── Bullet ───────────────────────────────────────────────────
+    bulletLen:        7,
+    // ── Audio — shakuhachi flute & taiko drums ────────────────────
+    sfxShootFreqStart:  1200,
+    sfxShootFreqEnd:    180,
+    sfxShootDur:        0.035,
+    sfxThrustLPF:       110,
+    sfxBeatFreqA:       80,
+    sfxBeatFreqB:       55,
+    sfxUfoBigFreq:      175,
+    sfxUfoSmallFreq:    490,
+  },
 };
 
 // Currently active theme — persisted to localStorage
@@ -397,6 +438,7 @@ const THEME_LIST = [
   { id: 'base',        name: '1979',       price: null,   desc: 'THE ORIGINAL' },
   { id: 'neonOcean',   name: 'NEON OCEAN', price: '$0.99', desc: 'DEEP SEA VECTOR' },
   { id: 'psychedelic', name: 'PSYCHEDELIC', price: '$0.99', desc: 'FRACTAL SPACE' },
+  { id: 'feudalJapan', name: 'FEUDAL JAPAN', price: '$0.99', desc: 'INK & STEEL' },
 ];
 
 const MAX_LB_ENTRIES = 10;
