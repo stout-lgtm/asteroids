@@ -2060,7 +2060,7 @@ function drawThemeSelect() {
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fff';
-  ctx.font = `bold ${Math.min(36, W * 0.058)}px monospace`;
+  ctx.font = `bold ${Math.min(41, W * 0.067)}px monospace`;
   setGlow(6);
   ctx.fillText('VIBE PACKS', W / 2, H * 0.14);
   clearGlow();
@@ -2090,8 +2090,8 @@ function drawThemeSelect() {
     ctx.fillText(pack.name, padX + 16, y + rowH * 0.40);
 
     ctx.fillStyle = active ? '#ccaa00' : owned ? '#aaa' : '#444';
-    ctx.font = `${Math.min(16, W * 0.024)}px monospace`;
-    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.70);
+    ctx.font = `${Math.min(22, W * 0.034)}px monospace`;
+    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.72);
 
     // Right: status badge
     ctx.textAlign = 'right';
