@@ -155,14 +155,15 @@ const UFO_SPEED = 90;
 //   30+  |  12L  |  3.40 |     0         |    0.75s     |  82% (cap)
 
 function getLevelCfg() {
-  const w = wave;
+  const w  = wave;
+  const ew = w * 1.15;  // effective wave — difficulty ramps ~15% sooner
   return {
-    L:      Math.min(3 + Math.floor(w * 0.50), 12),
-    M:      w <= 2 ? 0 : Math.min(Math.floor((w - 2) * 0.35), 5),
-    spd:    Math.min(1.0 + (w - 1) * 0.10, 3.5),
-    ufoSc:  w <= 2 ? Infinity : Math.max(0, 3000 - w * 180),
-    ufoInt: Math.max(0.75, 2.2 - w * 0.07),
-    ufoAcc: Math.min(0.82, Math.max(0, (w - 3) * 0.05)),
+    L:      Math.min(3 + Math.floor(ew * 0.50), 12),
+    M:      w <= 2 ? 0 : Math.min(Math.floor((ew - 2) * 0.35), 5),
+    spd:    Math.min(1.0 + (ew - 1) * 0.10, 3.5),
+    ufoSc:  w <= 2 ? Infinity : Math.max(0, 3000 - ew * 180),
+    ufoInt: Math.max(0.75, 2.2 - ew * 0.07),
+    ufoAcc: Math.min(0.82, Math.max(0, (ew - 3) * 0.05)),
   };
 }
 
@@ -1066,13 +1067,18 @@ window.addEventListener('keydown', e => {
   }
 
   if (state === 'leaderboard') {
-    if (e.code === 'Space' || e.code === 'Enter') goToTitle();
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') goToTitle();
     return;
   }
 
-  if (state === 'gameover' && gameOverDelay <= 0) {
-    if (e.code === 'Space' || e.code === 'Enter') handleGameOverContinue();
+  if (state === 'gameover') {
+    if (e.code === 'Escape') { goToTitle(); return; }
+    if (gameOverDelay <= 0 && (e.code === 'Space' || e.code === 'Enter')) handleGameOverContinue();
     return;
+  }
+
+  if (state === 'playing') {
+    if (e.code === 'Escape') { goToTitle(); return; }
   }
 
   if (state === 'title') {
@@ -2059,8 +2065,8 @@ function drawThemeSelect() {
   ctx.fillText('VIBE PACKS', W / 2, H * 0.14);
   clearGlow();
 
-  const rowH   = Math.min(H * 0.16, 88);
-  const startY = H * 0.24;
+  const rowH   = Math.min(H * 0.19, 108);
+  const startY = H * 0.22;
   const padX   = Math.max(30, W * 0.08);
 
   THEME_LIST.forEach((pack, i) => {
@@ -2080,12 +2086,12 @@ function drawThemeSelect() {
     // Left: theme name + description
     ctx.textAlign = 'left';
     ctx.fillStyle = active ? '#FFD700' : owned ? '#fff' : '#555';
-    ctx.font = `bold ${Math.min(22, W * 0.034)}px monospace`;
-    ctx.fillText(pack.name, padX + 16, y + rowH * 0.38);
+    ctx.font = `bold ${Math.min(28, W * 0.042)}px monospace`;
+    ctx.fillText(pack.name, padX + 16, y + rowH * 0.40);
 
-    ctx.fillStyle = active ? '#ccaa00' : owned ? '#888' : '#333';
-    ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
-    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.68);
+    ctx.fillStyle = active ? '#ccaa00' : owned ? '#aaa' : '#444';
+    ctx.font = `${Math.min(16, W * 0.024)}px monospace`;
+    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.70);
 
     // Right: status badge
     ctx.textAlign = 'right';
@@ -2134,8 +2140,8 @@ function drawThemeSelect() {
 
 function handleThemesTouch(e) {
   const W = canvas.width, H = canvas.height;
-  const rowH   = Math.min(H * 0.16, 88);
-  const startY = H * 0.24;
+  const rowH   = Math.min(H * 0.19, 108);
+  const startY = H * 0.22;
 
   for (const t of e.changedTouches) {
     const ty = t.clientY;
@@ -2275,7 +2281,7 @@ function startGame() {
   music.start();
 }
 
-let titleNameAlpha     = 1;    // opacity of "ASTEROIDS" — fades to 0
+let titleNameAlpha     = 1;    // opacity of "ASTEROIDS" — fades to ghost (not zero)
 let titleNameFadeDelay = 2.2;  // seconds before fade begins
 
 function initTitle() {
@@ -2313,7 +2319,7 @@ function loop(ts) {
     if (titleNameFadeDelay > 0) {
       titleNameFadeDelay -= dt;
     } else {
-      titleNameAlpha = Math.max(0, titleNameAlpha - dt * 0.55);
+      titleNameAlpha = Math.max(0.14, titleNameAlpha - dt * 0.55);
     }
     drawTitle();
     return;
