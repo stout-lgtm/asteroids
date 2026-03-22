@@ -1950,16 +1950,16 @@ function drawTitle() {
   ctx.textAlign = 'center';
 
   ctx.fillStyle = '#fff';
-  ctx.font = `${Math.min(20, W * 0.033)}px monospace`;
+  ctx.font = `${Math.min(28, W * 0.046)}px monospace`;
   ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE OR ENTER', W / 2, H * 0.44);
 
   ctx.fillStyle = '#FFD700';
-  ctx.font = `bold ${Math.min(15, W * 0.024)}px monospace`;
-  ctx.fillText(isMobile ? 'VIBE PACKS' : 'T \u2014 VIBE PACKS', W / 2, H * 0.51);
+  ctx.font = `bold ${Math.min(21, W * 0.034)}px monospace`;
+  ctx.fillText(isMobile ? 'VIBE PACKS' : 'T \u2014 VIBE PACKS', W / 2, H * 0.52);
 
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = '14px monospace';
-  ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.56);
+  ctx.font = '16px monospace';
+  ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.58);
 
   // Mini leaderboard peek — top 3 scores
   const lb = lbLoad();
@@ -2090,8 +2090,8 @@ function drawThemeSelect() {
     ctx.fillText(pack.name, padX + 16, y + rowH * 0.40);
 
     ctx.fillStyle = active ? '#ccaa00' : owned ? '#aaa' : '#444';
-    ctx.font = `${Math.min(22, W * 0.034)}px monospace`;
-    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.72);
+    ctx.font = `${Math.min(16, W * 0.024)}px monospace`;
+    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.70);
 
     // Right: status badge
     ctx.textAlign = 'right';
