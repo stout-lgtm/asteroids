@@ -526,6 +526,18 @@ const sfx = {
     g.gain.exponentialRampToValueAtTime(0.001, t + activeTheme.sfxShootDur);
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t); osc.stop(t + activeTheme.sfxShootDur + 0.01);
+    // Feudal Japan: bowstring twang overlay
+    if (activeTheme.id === 'feudalJapan') {
+      const osc2 = audioCtx.createOscillator();
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(880, t);
+      osc2.frequency.exponentialRampToValueAtTime(220, t + 0.045);
+      const gj = audioCtx.createGain();
+      gj.gain.setValueAtTime(0.12, t);
+      gj.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+      osc2.connect(gj); gj.connect(audioCtx.destination);
+      osc2.start(t); osc2.stop(t + 0.05);
+    }
   },
 
   explode(size) {
@@ -558,6 +570,30 @@ const sfx = {
       g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
       src2.connect(bp2); bp2.connect(g2); g2.connect(audioCtx.destination);
       src2.start(t); src2.stop(t + 0.32);
+      // Feudal Japan: taiko war drum crash
+      if (activeTheme.id === 'feudalJapan') {
+        const drumBuf = makeNoiseBuf(0.5);
+        const drum = audioCtx.createBufferSource();
+        drum.buffer = drumBuf;
+        const drumLp = audioCtx.createBiquadFilter();
+        drumLp.type = 'lowpass';
+        drumLp.frequency.setValueAtTime(180, t);
+        drumLp.frequency.exponentialRampToValueAtTime(40, t + 0.5);
+        const drumG = audioCtx.createGain();
+        drumG.gain.setValueAtTime(0.55, t);
+        drumG.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        const body = audioCtx.createOscillator();
+        body.type = 'sine';
+        body.frequency.setValueAtTime(65, t);
+        body.frequency.exponentialRampToValueAtTime(30, t + 0.3);
+        const bodyG = audioCtx.createGain();
+        bodyG.gain.setValueAtTime(0.35, t);
+        bodyG.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        drum.connect(drumLp); drumLp.connect(drumG); drumG.connect(audioCtx.destination);
+        body.connect(bodyG); bodyG.connect(audioCtx.destination);
+        drum.start(t); drum.stop(t + 0.55);
+        body.start(t); body.stop(t + 0.35);
+      }
       // Neon Ocean: deep underwater WHOMP
       if (activeTheme.id === 'neonOcean') {
         const osc = audioCtx.createOscillator();
@@ -635,6 +671,21 @@ const sfx = {
       g2.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
       osc2.connect(g2); g2.connect(audioCtx.destination);
       osc2.start(t); osc2.stop(t + 0.15);
+    }
+    // Feudal Japan: taiko strike overlay — noise burst adds skin-hit crack
+    if (activeTheme.id === 'feudalJapan') {
+      const taikoBuf = makeNoiseBuf(0.12);
+      const src = audioCtx.createBufferSource();
+      src.buffer = taikoBuf;
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = freq * 1.8;
+      bp.Q.value = 2.5;
+      const tg = audioCtx.createGain();
+      tg.gain.setValueAtTime(0.28, t);
+      tg.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      src.connect(bp); bp.connect(tg); tg.connect(audioCtx.destination);
+      src.start(t); src.stop(t + 0.14);
     }
   },
 
@@ -727,6 +778,7 @@ const music = {
     this._playing = true;
     if (activeTheme.id === 'neonOcean') this._startNeonOcean();
     else if (activeTheme.id === 'psychedelic') this._startPsychedelic();
+    else if (activeTheme.id === 'feudalJapan') this._startFeudalJapan();
   },
 
   stop() {
@@ -1004,6 +1056,123 @@ const music = {
     const origStop = this.stop.bind(this);
     // Patch: store both intervals for cleanup
     this._extraIntervals = [melTimer];
+  },
+
+  _startFeudalJapan() {
+    const ac = audioCtx;
+    const t  = ac.currentTime;
+    const master = ac.createGain();
+    master.gain.value = 0.15;
+    master.connect(ac.destination);
+    this._gains.push(master);
+
+    // ── Deep taiko drone ─────────────────────────────────────────
+    const taiko1 = ac.createOscillator();
+    taiko1.type = 'sine';
+    taiko1.frequency.value = 55;
+    const taiko2 = ac.createOscillator();
+    taiko2.type = 'sine';
+    taiko2.frequency.value = 56.2;
+    const taikoG = ac.createGain();
+    taikoG.gain.value = 0.22;
+    const taikoLp = ac.createBiquadFilter();
+    taikoLp.type = 'lowpass';
+    taikoLp.frequency.value = 180;
+    taiko1.connect(taikoG); taiko2.connect(taikoG);
+    taikoG.connect(taikoLp); taikoLp.connect(master);
+    taiko1.start(t); taiko2.start(t);
+    this._nodes.push(taiko1, taiko2);
+
+    // ── Mountain wind through bamboo ──────────────────────────────
+    const windBuf = makeNoiseBuf(4);
+    const wind = ac.createBufferSource();
+    wind.buffer = windBuf;
+    wind.loop = true;
+    const windBp = ac.createBiquadFilter();
+    windBp.type = 'bandpass';
+    windBp.frequency.value = 600;
+    windBp.Q.value = 0.8;
+    const windG = ac.createGain();
+    windG.gain.value = 0.04;
+    const windLfo = ac.createOscillator();
+    windLfo.type = 'sine';
+    windLfo.frequency.value = 0.06;
+    const windLfoG = ac.createGain();
+    windLfoG.gain.value = 300;
+    windLfo.connect(windLfoG);
+    windLfoG.connect(windBp.frequency);
+    wind.connect(windBp); windBp.connect(windG); windG.connect(master);
+    wind.start(t); windLfo.start(t);
+    this._nodes.push(wind, windLfo);
+
+    // ── Koto-like plucked string ──────────────────────────────────
+    const kotoNotes = [261.6, 293.7, 329.6, 392.0, 440.0, 523.3, 392.0, 329.6];
+    let kotoIdx = 0;
+    this._extraIntervals = this._extraIntervals || [];
+    const kotoInterval = setInterval(() => {
+      if (!this._playing || !audioCtx) return;
+      const now = ac.currentTime;
+      const freq = kotoNotes[kotoIdx % kotoNotes.length];
+      kotoIdx++;
+      const osc = ac.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      const env = ac.createGain();
+      env.gain.setValueAtTime(0.18, now);
+      env.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      const kotoLp = ac.createBiquadFilter();
+      kotoLp.type = 'lowpass';
+      kotoLp.frequency.setValueAtTime(1800, now);
+      kotoLp.frequency.exponentialRampToValueAtTime(400, now + 0.4);
+      kotoLp.Q.value = 1.5;
+      osc.connect(kotoLp); kotoLp.connect(env); env.connect(master);
+      osc.start(now); osc.stop(now + 0.6);
+    }, 1100);
+    this._extraIntervals.push(kotoInterval);
+
+    // ── Shakuhachi lead melody ────────────────────────────────────
+    const shaku = [
+      { f: 293.7, d: 0.9 }, { f: 329.6, d: 0.5 }, { f: 392.0, d: 1.1 },
+      { f: 440.0, d: 0.4 }, { f: 392.0, d: 0.7 }, { f: 329.6, d: 1.3 },
+      { f: 0,     d: 0.8 }, { f: 261.6, d: 0.6 }, { f: 293.7, d: 0.8 },
+      { f: 440.0, d: 1.4 }, { f: 392.0, d: 0.5 }, { f: 0,     d: 1.2 },
+    ];
+    let shakuIdx = 0;
+    const scheduleShaku = () => {
+      if (!this._playing || !audioCtx) return;
+      const note = shaku[shakuIdx % shaku.length];
+      shakuIdx++;
+      const dur = note.d * 1000;
+      if (note.f > 0) {
+        const now = ac.currentTime;
+        const osc = ac.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.value = note.f;
+        const vib = ac.createOscillator();
+        vib.type = 'sine';
+        vib.frequency.value = 5.2;
+        const vibG = ac.createGain();
+        vibG.gain.value = 5.5;
+        vib.connect(vibG); vibG.connect(osc.frequency);
+        const env = ac.createGain();
+        const attackT  = 0.08;
+        const releaseT = note.d * 0.25;
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.13, now + attackT);
+        env.gain.setValueAtTime(0.13, now + note.d - releaseT);
+        env.gain.exponentialRampToValueAtTime(0.001, now + note.d);
+        const hp = ac.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 200;
+        osc.connect(hp); hp.connect(env); env.connect(master);
+        osc.start(now); vib.start(now);
+        osc.stop(now + note.d + 0.05);
+        vib.stop(now + note.d + 0.05);
+      }
+      const shakuTimer = setTimeout(scheduleShaku, dur);
+      this._extraIntervals.push(shakuTimer);
+    };
+    scheduleShaku();
   },
 };
 
