@@ -1415,9 +1415,23 @@ function drawAsteroid(a) {
   setGlow(activeTheme.asteroidGlow);
   ctx.shadowColor = astC;
   ctx.strokeStyle = astC;
-  ctx.lineWidth   = 1.5;
+  ctx.lineWidth   = activeTheme.id === 'feudalJapan' ? 2.2 : 1.5;
   ctx.translate(a.x, a.y);
   ctx.rotate(a.angle);
+  // Feudal Japan: ink-bleed shadow pass — offset duplicate for woodblock feel
+  if (activeTheme.id === 'feudalJapan') {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(139,115,85,0.22)';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(a.verts[0][0] + 1.5, a.verts[0][1] + 1.5);
+    for (let i = 1; i < a.verts.length; i++) {
+      ctx.lineTo(a.verts[i][0] + 1.5, a.verts[i][1] + 1.5);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
   ctx.beginPath();
   ctx.moveTo(a.verts[0][0], a.verts[0][1]);
   for (let i = 1; i < a.verts.length; i++) ctx.lineTo(a.verts[i][0], a.verts[i][1]);
@@ -1548,10 +1562,14 @@ function drawShard(s) {
   ctx.globalAlpha = alpha;
   const shdC = activeTheme.id === 'psychedelic'
     ? hslRotate(activeTheme.shardColor, psychHue + s.lineAngle * 60)
-    : activeTheme.shardColor;
+    : activeTheme.id === 'feudalJapan'
+      ? (s.lineAngle % (Math.PI * 2) < Math.PI ? '#e8c87a' : '#d4806a')
+      : activeTheme.shardColor;
   setGlow(activeTheme.shardGlow);
   ctx.strokeStyle = shdC;
-  ctx.lineWidth   = activeTheme.id === 'neonOcean' ? 2.0 : 1.5;
+  ctx.lineWidth   = activeTheme.id === 'neonOcean' ? 2.0
+    : activeTheme.id === 'feudalJapan' ? 2.4
+    : 1.5;
   ctx.lineCap     = 'round';
   ctx.beginPath();
   ctx.moveTo(s.x - cx, s.y - cy);
@@ -1803,6 +1821,7 @@ function drawHUD() {
     : activeTheme.hudScoreColor;
   ctx.font      = `bold ${scoreSize}px monospace`;
   setGlow(4);
+  if (activeTheme.id === 'feudalJapan') ctx.shadowColor = '#cc7700';
   ctx.fillText(String(score).padStart(6, '0'), 20, topY);
   clearGlow();
 
@@ -1944,6 +1963,17 @@ function drawTitle() {
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, H);
   }
+  // Feudal Japan: warm amber vignette on title screen
+  if (activeTheme.id === 'feudalJapan') {
+    const vg = ctx.createRadialGradient(
+      W/2, H/2, Math.min(W,H) * 0.25,
+      W/2, H/2, Math.min(W,H) * 0.9
+    );
+    vg.addColorStop(0, 'rgba(10,7,5,0)');
+    vg.addColorStop(1, 'rgba(20,8,0,0.75)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
   drawStars();
 
   // Background drifting asteroids
@@ -1973,8 +2003,9 @@ function drawTitle() {
   }
 
   // "1979" — always solid, drifts to center as name fades
-  const yearColor = activeTheme.id === 'base' ? '#FFD700'
-    : activeTheme.id === 'neonOcean' ? '#00ffcc'
+  const yearColor = activeTheme.id === 'base'       ? '#FFD700'
+    : activeTheme.id === 'neonOcean'                 ? '#00ffcc'
+    : activeTheme.id === 'feudalJapan'               ? '#cc4400'
     : hslRotate('#FFD700', psychHue);
   ctx.fillStyle = yearColor;
   ctx.fillText(' 1979', titleNameAlpha > 0 ? fullX + w1 : soloX, titleY);
@@ -1983,7 +2014,9 @@ function drawTitle() {
   if (activeTheme.id !== 'base') {
     const badgeY = titleY + titleSize * 0.5;
     ctx.font = `${Math.min(26, W * 0.040)}px monospace`;
-    ctx.fillStyle = activeTheme.hudHiColor;
+    ctx.fillStyle = activeTheme.id === 'neonOcean'   ? activeTheme.hudHiColor
+      : activeTheme.id === 'feudalJapan'             ? '#cc4400'
+      : hslRotate('#FFD700', psychHue);
     ctx.textAlign = 'center';
     ctx.fillText('[ ' + activeTheme.name + ' VIBE ]', W / 2, badgeY);
   }
@@ -2469,6 +2502,17 @@ function loop(ts) {
     );
     vg.addColorStop(0, 'rgba(0,8,16,0)');
     vg.addColorStop(1, 'rgba(0,2,12,0.7)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // Feudal Japan: warm amber candlelight vignette
+  if (activeTheme.id === 'feudalJapan') {
+    const vg = ctx.createRadialGradient(
+      W/2, H/2, Math.min(W,H) * 0.25,
+      W/2, H/2, Math.min(W,H) * 0.9
+    );
+    vg.addColorStop(0, 'rgba(10,7,5,0)');
+    vg.addColorStop(1, 'rgba(20,8,0,0.75)');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, W, H);
   }
