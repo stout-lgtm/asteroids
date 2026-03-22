@@ -1940,7 +1940,7 @@ function drawTitle() {
   // Theme name badge below the year
   if (activeTheme.id !== 'base') {
     const badgeY = titleY + titleSize * 0.5;
-    ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
+    ctx.font = `${Math.min(26, W * 0.040)}px monospace`;
     ctx.fillStyle = activeTheme.hudHiColor;
     ctx.textAlign = 'center';
     ctx.fillText('[ ' + activeTheme.name + ' VIBE ]', W / 2, badgeY);
