@@ -66,6 +66,22 @@ canvas { display: block; touch-action: none; }
 <script>
 'use strict';
 
+/*
+ * VIBE PACK / THEME SYSTEM
+ * ────────────────────────────────────────────────────────────────
+ * Vibe packs (themes) are registered in THEMES{} and selected via setTheme(id).
+ * The active theme is read by all draw, audio, and music functions.
+ *
+ * DLC INTEGRATION
+ * ────────────────────────────────────────────────────────────────
+ * Steam (Electron):  inject window.__STEAM_BUILD__ = true in preload.js
+ *                    implement window.steamDLC.isOwned(id) + openStore(id)
+ * Mobile (native):   inject window.__MOBILE_BUILD__ = true
+ *                    implement window.iapBridge.isOwned(id) + purchase(id)
+ * On purchase:       call window.onDLCPurchaseComplete(themeId, true)
+ * ────────────────────────────────────────────────────────────────
+ */
+
 // ─── Canvas setup ────────────────────────────────────────────────────────────
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
@@ -92,8 +108,11 @@ function generateStars() {
 
 function drawStars() {
   for (const s of stars) {
-    ctx.globalAlpha = s.a;
-    ctx.fillStyle = '#fff';
+    const alpha = activeTheme.starAnimate
+      ? s.a * (0.7 + 0.3 * Math.sin(psychHue * 0.05 + s.x * 0.01))
+      : s.a;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = activeTheme.starColor;
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, TAU);
     ctx.fill();
@@ -147,6 +166,237 @@ function getLevelCfg() {
   };
 }
 
+
+// ─── Theme Registry ─────────────────────────────────────────────────────────
+const THEMES = {
+  base: {
+    id: 'base',
+    name: '1979',
+    // ── Colors ──────────────────────────────────────────────────
+    bgColor:          '#000000',
+    shipColor:        '#ffffff',
+    shipGlow:         8,
+    thrustColor:      '#ffffff',
+    asteroidColor:    '#dddddd',
+    asteroidGlow:     8,
+    bulletColor:      '#ffffff',
+    bulletGlow:       8,
+    ufoColor:         '#ffffff',
+    ufoGlow:          8,
+    shardColor:       '#ffffff',
+    shardGlow:        6,
+    particleColor:    '#ffffff',
+    starColor:        '#ffffff',
+    hudScoreColor:    '#ffffff',
+    hudHiColor:       '#555555',
+    hudWaveColor:     '#444444',
+    hudLifeColor:     '#ffffff',
+    extraLifeColor:   '#ffffff',
+    // ── Star field ───────────────────────────────────────────────
+    starCount:        120,
+    starMinAlpha:     0.6,
+    starMaxAlpha:     0.8,
+    starAnimate:      false,
+    // ── Bullet ───────────────────────────────────────────────────
+    bulletLen:        9,
+    // ── Audio multipliers (1.0 = base) ───────────────────────────
+    sfxShootFreqStart:  1800,
+    sfxShootFreqEnd:    300,
+    sfxShootDur:        0.04,
+    sfxThrustLPF:       90,
+    sfxBeatFreqA:       110,
+    sfxBeatFreqB:       85,
+    sfxUfoBigFreq:      200,
+    sfxUfoSmallFreq:    550,
+  },
+
+  neonOcean: {
+    id: 'neonOcean',
+    name: 'NEON OCEAN',
+    // ── Colors — deep sea bioluminescent palette ─────────────────
+    bgColor:          '#000810',
+    shipColor:        '#00ffcc',
+    shipGlow:         14,
+    thrustColor:      '#00aaff',
+    asteroidColor:    '#0088aa',
+    asteroidGlow:     12,
+    bulletColor:      '#00ffee',
+    bulletGlow:       16,
+    ufoColor:         '#44ffaa',
+    ufoGlow:          14,
+    shardColor:       '#00ddff',
+    shardGlow:        10,
+    particleColor:    '#00ffcc',
+    starColor:        '#aaddff',
+    hudScoreColor:    '#00ffcc',
+    hudHiColor:       '#007799',
+    hudWaveColor:     '#005566',
+    hudLifeColor:     '#00ffcc',
+    extraLifeColor:   '#00ffee',
+    // ── Stars — gentle blue-tinted drift ─────────────────────────
+    starCount:        140,
+    starMinAlpha:     0.3,
+    starMaxAlpha:     0.7,
+    starAnimate:      false,
+    // ── Bullet ───────────────────────────────────────────────────
+    bulletLen:        14,
+    // ── Audio — underwater / sonar aesthetic ─────────────────────
+    sfxShootFreqStart:  800,
+    sfxShootFreqEnd:    120,
+    sfxShootDur:        0.06,
+    sfxThrustLPF:       65,
+    sfxBeatFreqA:       90,
+    sfxBeatFreqB:       70,
+    sfxUfoBigFreq:      140,
+    sfxUfoSmallFreq:    380,
+  },
+
+  psychedelic: {
+    id: 'psychedelic',
+    name: 'PSYCHEDELIC',
+    // ── Colors — these are BASE values; hue shifts at runtime ────
+    bgColor:          '#050005',
+    shipColor:        '#ff88ff',
+    shipGlow:         16,
+    thrustColor:      '#ffaa00',
+    asteroidColor:    '#ff66aa',
+    asteroidGlow:     12,
+    bulletColor:      '#aaff44',
+    bulletGlow:       18,
+    ufoColor:         '#ff44ff',
+    ufoGlow:          14,
+    shardColor:       '#ffcc00',
+    shardGlow:        12,
+    particleColor:    '#ff88ff',
+    starColor:        '#ccaaff',
+    hudScoreColor:    '#ff88ff',
+    hudHiColor:       '#884488',
+    hudWaveColor:     '#553355',
+    hudLifeColor:     '#ff88ff',
+    extraLifeColor:   '#ffff00',
+    // ── Stars ─────────────────────────────────────────────────────
+    starCount:        160,
+    starMinAlpha:     0.4,
+    starMaxAlpha:     0.9,
+    starAnimate:      true,
+    // ── Bullet ───────────────────────────────────────────────────
+    bulletLen:        11,
+    // ── Audio — warped, pitch-bent, modular synth ─────────────────
+    sfxShootFreqStart:  2400,
+    sfxShootFreqEnd:    200,
+    sfxShootDur:        0.045,
+    sfxThrustLPF:       130,
+    sfxBeatFreqA:       150,
+    sfxBeatFreqB:       100,
+    sfxUfoBigFreq:      260,
+    sfxUfoSmallFreq:    680,
+  },
+};
+
+// Currently active theme — persisted to localStorage
+let activeTheme = THEMES.base;
+
+function setTheme(id) {
+  const t = THEMES[id];
+  if (!t) return;
+  activeTheme = t;
+  try { localStorage.setItem('1979_theme', id); } catch (_) {}
+}
+
+function loadSavedTheme() {
+  // Detect build environment
+  if (window.__STEAM_BUILD__) DLC.isSteamBuild = true;
+  if (window.__MOBILE_BUILD__) DLC.isMobileBuild = true;
+  // Load saved theme preference
+  try {
+    const saved = localStorage.getItem('1979_theme');
+    if (saved && THEMES[saved] && DLC.isUnlocked(saved)) {
+      activeTheme = THEMES[saved];
+    }
+  } catch (_) {}
+}
+
+// ─── DLC bridge — no-op stubs replaced in Steam/mobile wrappers ──
+const DLC = {
+  // Whether we are running inside a Steam Electron wrapper
+  isSteamBuild: false,
+  // Whether we are running inside a mobile native wrapper
+  isMobileBuild: false,
+
+  isUnlocked(themeId) {
+    if (themeId === 'base') return true;
+    // Steam build: checked via window.steamDLC injected by preload.js
+    if (this.isSteamBuild && window.steamDLC) {
+      return window.steamDLC.isOwned(themeId);
+    }
+    // Mobile build: checked via window.iapBridge injected by native layer
+    if (this.isMobileBuild && window.iapBridge) {
+      return window.iapBridge.isOwned(themeId);
+    }
+    // Web / dev: use localStorage
+    try {
+      return localStorage.getItem('1979_dlc_' + themeId) === '1';
+    } catch (_) { return false; }
+  },
+
+  purchase(themeId, onSuccess) {
+    this._pendingCallback = onSuccess;
+    if (this.isSteamBuild && window.steamDLC) {
+      window.steamDLC.openStore(themeId);   // opens Steam overlay
+      return;
+    }
+    if (this.isMobileBuild && window.iapBridge) {
+      window.iapBridge.purchase(themeId);   // triggers IAP sheet
+      return;
+    }
+    // Web build: auto-grant for testing (replace with real IAP before shipping)
+    console.log('[DLC] Purchase (web test mode):', themeId);
+    try { localStorage.setItem('1979_dlc_' + themeId, '1'); } catch(_) {}
+    if (this._pendingCallback) this._pendingCallback();
+    this._pendingCallback = null;
+  },
+
+  // Called by Steam overlay or IAP bridge on transaction completion
+  onPurchaseComplete(themeId, success) {
+    if (success) {
+      try { localStorage.setItem('1979_dlc_' + themeId, '1'); } catch (_) {}
+      setTheme(themeId);
+    }
+    if (this._pendingCallback && success) this._pendingCallback();
+    this._pendingCallback = null;
+  },
+
+  restore() {
+    if (this.isMobileBuild && window.iapBridge) {
+      window.iapBridge.restorePurchases();
+      return;
+    }
+    console.log('[DLC] Restore stub — check localStorage manually in dev');
+  },
+
+  _pendingCallback: null,
+};
+
+// Expose onPurchaseComplete globally so native wrappers can call it:
+window.onDLCPurchaseComplete = (id, success) => DLC.onPurchaseComplete(id, success);
+
+// ─── Steam bridge — no-op stubs replaced in Electron wrapper ─────
+const Steam = {
+  isAvailable: false,
+  submitScore(name, score, wave) { console.log('[Steam] submitScore', name, score, wave); },
+  fetchLeaderboard()             { console.log('[Steam] fetchLeaderboard'); return []; },
+  unlockAchievement(id)          { console.log('[Steam] unlockAchievement', id); },
+};
+// ─── End Steam bridge ────────────────────────────────────────────
+// ─── End DLC bridge ──────────────────────────────────────────────
+
+// ─── Theme select screen ─────────────────────────────────────────
+let themeSelectIndex = 0;
+const THEME_LIST = [
+  { id: 'base',        name: '1979',       price: null,   desc: 'THE ORIGINAL' },
+  { id: 'neonOcean',   name: 'NEON OCEAN', price: '$0.99', desc: 'DEEP SEA VECTOR' },
+  { id: 'psychedelic', name: 'PSYCHEDELIC', price: '$0.99', desc: 'FRACTAL SPACE' },
+];
 
 const MAX_LB_ENTRIES = 10;
 const LB_KEY = 'asteroidsLeaderboard';
@@ -226,13 +476,13 @@ const sfx = {
     // both decay exponentially and simultaneously over ~80ms — "thwack-pew"
     const osc = audioCtx.createOscillator();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(800, t);
-    osc.frequency.exponentialRampToValueAtTime(130, t + 0.09);
+    osc.frequency.setValueAtTime(activeTheme.sfxShootFreqStart, t);
+    osc.frequency.exponentialRampToValueAtTime(activeTheme.sfxShootFreqEnd, t + 0.035);
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0.36, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    g.gain.exponentialRampToValueAtTime(0.001, t + activeTheme.sfxShootDur);
     osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + 0.10);
+    osc.start(t); osc.stop(t + activeTheme.sfxShootDur + 0.01);
   },
 
   explode(size) {
@@ -265,6 +515,18 @@ const sfx = {
       g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
       src2.connect(bp2); bp2.connect(g2); g2.connect(audioCtx.destination);
       src2.start(t); src2.stop(t + 0.32);
+      // Neon Ocean: deep underwater WHOMP
+      if (activeTheme.id === 'neonOcean') {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(55, t);
+        osc.frequency.exponentialRampToValueAtTime(25, t + 0.35);
+        const gw = audioCtx.createGain();
+        gw.gain.setValueAtTime(0.3, t);
+        gw.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+        osc.connect(gw); gw.connect(audioCtx.destination);
+        osc.start(t); osc.stop(t + 0.37);
+      }
     } else if (size === 'medium') {
       // Mid BANG — starts warmer, not sharp
       const dur = 0.6;
@@ -280,6 +542,18 @@ const sfx = {
       g.gain.exponentialRampToValueAtTime(0.001, t + dur);
       src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
       src.start(t); src.stop(t + dur + 0.02);
+      // Psychedelic: pitch-bent sawtooth sweep
+      if (activeTheme.id === 'psychedelic') {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(320, t);
+        osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+        const gp = audioCtx.createGain();
+        gp.gain.setValueAtTime(0.18, t);
+        gp.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.connect(gp); gp.connect(audioCtx.destination);
+        osc.start(t); osc.stop(t + 0.32);
+      }
     } else {
       // Small rock: short mid-low thud — lowpass not bandpass, no resonant slap
       const dur = 0.15;
@@ -308,6 +582,17 @@ const sfx = {
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t); osc.stop(t + 0.19);
+    // Psychedelic: harmonized overtone
+    if (activeTheme.id === 'psychedelic') {
+      const osc2 = audioCtx.createOscillator();
+      osc2.type = 'sine';
+      osc2.frequency.value = freq * 1.5;
+      const g2 = audioCtx.createGain();
+      g2.gain.setValueAtTime(0.12, t);
+      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      osc2.connect(g2); g2.connect(audioCtx.destination);
+      osc2.start(t); osc2.stop(t + 0.15);
+    }
   },
 
   // ── continuous sounds (start / stop) ─────────────────────────────────────
@@ -324,7 +609,7 @@ const sfx = {
 
     const lpf = audioCtx.createBiquadFilter();
     lpf.type = 'lowpass';
-    lpf.frequency.value = 90;
+    lpf.frequency.value = activeTheme.sfxThrustLPF;
 
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0, t);
@@ -356,7 +641,7 @@ const sfx = {
     const isBig = type !== 'small';
     const osc   = audioCtx.createOscillator();
     osc.type = 'square';
-    osc.frequency.value = isBig ? 200 : 550;
+    osc.frequency.value = isBig ? activeTheme.sfxUfoBigFreq : activeTheme.sfxUfoSmallFreq;
     const lfo     = audioCtx.createOscillator();
     const lfoGain = audioCtx.createGain();
     lfo.frequency.value  = isBig ? 3 : 8;
@@ -383,6 +668,315 @@ const sfx = {
     this.thrustOff();
     this.ufoStop();
   },
+};
+
+// ─── Background Music Engine ─────────────────────────────────────────────────
+// Generative synth music loops — one per vibe pack, silent for base theme.
+const music = {
+  _nodes: [],      // all scheduled oscillators/sources to stop
+  _gains: [],      // gain nodes for fade-out
+  _interval: null, // scheduling loop
+  _playing: false,
+
+  start() {
+    if (!audioCtx || this._playing) return;
+    if (activeTheme.id === 'base') return;  // base has no music
+    this._playing = true;
+    if (activeTheme.id === 'neonOcean') this._startNeonOcean();
+    else if (activeTheme.id === 'psychedelic') this._startPsychedelic();
+  },
+
+  stop() {
+    if (!this._playing) return;
+    this._playing = false;
+    if (this._interval) { clearInterval(this._interval); this._interval = null; }
+    // Fade out all gain nodes then disconnect
+    const t = audioCtx ? audioCtx.currentTime : 0;
+    for (const g of this._gains) {
+      try {
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(g.gain.value, t);
+        g.gain.linearRampToValueAtTime(0, t + 0.3);
+      } catch (_) {}
+    }
+    // Stop all nodes after fade
+    setTimeout(() => {
+      for (const n of this._nodes) { try { n.stop(); } catch (_) {} }
+      this._nodes = [];
+      this._gains = [];
+    }, 400);
+  },
+
+  // ── Neon Ocean: ambient underwater synths ─────────────────────────────────
+  _startNeonOcean() {
+    const ac = audioCtx;
+    const t = ac.currentTime;
+    const master = ac.createGain();
+    master.gain.value = 0.18;
+    master.connect(ac.destination);
+    this._gains.push(master);
+
+    // Deep drone pad — two detuned oscillators
+    const drone1 = ac.createOscillator();
+    drone1.type = 'sine';
+    drone1.frequency.value = 55; // A1
+    const drone2 = ac.createOscillator();
+    drone2.type = 'sine';
+    drone2.frequency.value = 55.4; // slightly detuned for slow beating
+
+    const droneG = ac.createGain();
+    droneG.gain.value = 0.35;
+    const droneLp = ac.createBiquadFilter();
+    droneLp.type = 'lowpass';
+    droneLp.frequency.value = 200;
+
+    drone1.connect(droneG); drone2.connect(droneG);
+    droneG.connect(droneLp); droneLp.connect(master);
+    drone1.start(t); drone2.start(t);
+    this._nodes.push(drone1, drone2);
+
+    // Slow evolving pad — triangle wave with LFO on filter
+    const pad = ac.createOscillator();
+    pad.type = 'triangle';
+    pad.frequency.value = 110; // A2
+    const pad2 = ac.createOscillator();
+    pad2.type = 'triangle';
+    pad2.frequency.value = 165; // E3 — fifth above
+
+    const padG = ac.createGain();
+    padG.gain.value = 0.2;
+    const padLp = ac.createBiquadFilter();
+    padLp.type = 'lowpass';
+    padLp.frequency.value = 400;
+    padLp.Q.value = 2;
+
+    // LFO sweeps the pad filter slowly
+    const padLfo = ac.createOscillator();
+    padLfo.type = 'sine';
+    padLfo.frequency.value = 0.08; // very slow — 12.5s cycle
+    const padLfoG = ac.createGain();
+    padLfoG.gain.value = 300;
+    padLfo.connect(padLfoG);
+    padLfoG.connect(padLp.frequency);
+
+    pad.connect(padG); pad2.connect(padG);
+    padG.connect(padLp); padLp.connect(master);
+    pad.start(t); pad2.start(t); padLfo.start(t);
+    this._nodes.push(pad, pad2, padLfo);
+
+    // Filtered noise — underwater bubbles / current
+    const noiseBuf = makeNoiseBuf(4);
+    const noise = ac.createBufferSource();
+    noise.buffer = noiseBuf;
+    noise.loop = true;
+    const noiseLp = ac.createBiquadFilter();
+    noiseLp.type = 'bandpass';
+    noiseLp.frequency.value = 300;
+    noiseLp.Q.value = 1.5;
+    const noiseG = ac.createGain();
+    noiseG.gain.value = 0.08;
+
+    // LFO on noise filter — simulates water current
+    const noiseLfo = ac.createOscillator();
+    noiseLfo.type = 'sine';
+    noiseLfo.frequency.value = 0.15;
+    const noiseLfoG = ac.createGain();
+    noiseLfoG.gain.value = 200;
+    noiseLfo.connect(noiseLfoG);
+    noiseLfoG.connect(noiseLp.frequency);
+
+    noise.connect(noiseLp); noiseLp.connect(noiseG); noiseG.connect(master);
+    noise.start(t); noiseLfo.start(t);
+    this._nodes.push(noise, noiseLfo);
+
+    // Sonar pings — scheduled periodically
+    let pingTime = t + 2;
+    const sonarNotes = [330, 440, 392, 523, 349, 294]; // E4, A4, G4, C5, F4, D4
+    let noteIdx = 0;
+    this._interval = setInterval(() => {
+      if (!this._playing || !audioCtx) return;
+      const now = ac.currentTime;
+      const freq = sonarNotes[noteIdx % sonarNotes.length];
+      noteIdx++;
+
+      const ping = ac.createOscillator();
+      ping.type = 'sine';
+      ping.frequency.value = freq;
+      const pingG = ac.createGain();
+      pingG.gain.setValueAtTime(0.12, now);
+      pingG.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+      const pingReverb = ac.createBiquadFilter();
+      pingReverb.type = 'lowpass';
+      pingReverb.frequency.value = 1200;
+      ping.connect(pingReverb); pingReverb.connect(pingG); pingG.connect(master);
+      ping.start(now);
+      ping.stop(now + 2.0);
+    }, 3200);
+  },
+
+  // ── Psychedelic: 70s prog rock synths ─────────────────────────────────────
+  _startPsychedelic() {
+    const ac = audioCtx;
+    const t = ac.currentTime;
+    const master = ac.createGain();
+    master.gain.value = 0.16;
+    master.connect(ac.destination);
+    this._gains.push(master);
+
+    // Phased bass line — sawtooth with slow filter sweep
+    const bass = ac.createOscillator();
+    bass.type = 'sawtooth';
+    bass.frequency.value = 73.4; // D2
+    const bassG = ac.createGain();
+    bassG.gain.value = 0.3;
+    const bassLp = ac.createBiquadFilter();
+    bassLp.type = 'lowpass';
+    bassLp.frequency.value = 300;
+    bassLp.Q.value = 4;
+
+    // Slow filter sweep on bass — "wah" feel
+    const bassLfo = ac.createOscillator();
+    bassLfo.type = 'sine';
+    bassLfo.frequency.value = 0.12;
+    const bassLfoG = ac.createGain();
+    bassLfoG.gain.value = 250;
+    bassLfo.connect(bassLfoG);
+    bassLfoG.connect(bassLp.frequency);
+
+    bass.connect(bassLp); bassLp.connect(bassG); bassG.connect(master);
+    bass.start(t); bassLfo.start(t);
+    this._nodes.push(bass, bassLfo);
+
+    // Organ pad — stacked square waves (fundamental + 3rd + 5th)
+    const organFreqs = [146.8, 185, 220]; // D3, ~F#3, A3
+    for (const freq of organFreqs) {
+      const osc = ac.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      const g = ac.createGain();
+      g.gain.value = 0.06;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 800;
+      osc.connect(lp); lp.connect(g); g.connect(master);
+      osc.start(t);
+      this._nodes.push(osc);
+    }
+
+    // Phase shifter effect on organ — two notch filters with LFO
+    // (simulated by modulating a bandpass on the master)
+    const phaseLfo = ac.createOscillator();
+    phaseLfo.type = 'triangle';
+    phaseLfo.frequency.value = 0.25; // slow phase sweep
+    const phaseLfoG = ac.createGain();
+    phaseLfoG.gain.value = 600;
+    const phaseNotch = ac.createBiquadFilter();
+    phaseNotch.type = 'notch';
+    phaseNotch.frequency.value = 1000;
+    phaseNotch.Q.value = 1;
+    phaseLfo.connect(phaseLfoG);
+    phaseLfoG.connect(phaseNotch.frequency);
+    phaseLfo.start(t);
+    this._nodes.push(phaseLfo);
+
+    // Arpeggiator — classic prog rock ascending sequences
+    const arpNotes = [
+      293.7, 349.2, 440, 523.3,   // D4, F4, A4, C5
+      587.3, 523.3, 440, 349.2,   // D5, C5, A4, F4  (descending)
+      392, 440, 523.3, 659.3,     // G4, A4, C5, E5
+      587.3, 523.3, 440, 392,     // D5, C5, A4, G4
+    ];
+    let arpIdx = 0;
+    const arpSpeed = 180; // ms per note
+
+    this._interval = setInterval(() => {
+      if (!this._playing || !audioCtx) return;
+      const now = ac.currentTime;
+      const freq = arpNotes[arpIdx % arpNotes.length];
+      arpIdx++;
+
+      const osc = ac.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      const g = ac.createGain();
+      const noteDur = arpSpeed / 1000 * 0.8;
+      g.gain.setValueAtTime(0.14, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + noteDur);
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(2000, now);
+      lp.frequency.exponentialRampToValueAtTime(400, now + noteDur);
+      lp.Q.value = 3;
+      osc.connect(lp); lp.connect(g); g.connect(master);
+      osc.start(now);
+      osc.stop(now + noteDur + 0.05);
+    }, arpSpeed);
+
+    // High lead melody — slow singing line over the arps
+    const melodyNotes = [
+      { f: 587.3, d: 0.6 },  // D5
+      { f: 659.3, d: 0.4 },  // E5
+      { f: 698.5, d: 0.8 },  // F5
+      { f: 659.3, d: 0.3 },  // E5
+      { f: 587.3, d: 0.5 },  // D5
+      { f: 523.3, d: 0.7 },  // C5
+      { f: 440,   d: 0.9 },  // A4
+      { f: 0, d: 0.5 },      // rest
+    ];
+    let melIdx = 0;
+    const melTimer = setInterval(() => {
+      if (!this._playing || !audioCtx) return;
+      const now = ac.currentTime;
+      const note = melodyNotes[melIdx % melodyNotes.length];
+      melIdx++;
+      if (note.f === 0) return; // rest
+
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = note.f;
+      // Vibrato
+      const vib = ac.createOscillator();
+      vib.type = 'sine';
+      vib.frequency.value = 5.5;
+      const vibG = ac.createGain();
+      vibG.gain.value = 4;
+      vib.connect(vibG); vibG.connect(osc.frequency);
+
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(0.1, now + 0.05);
+      g.gain.setValueAtTime(0.1, now + note.d * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.001, now + note.d);
+      osc.connect(g); g.connect(master);
+      osc.start(now); vib.start(now);
+      osc.stop(now + note.d + 0.05);
+      vib.stop(now + note.d + 0.05);
+    }, 600);
+    // Store secondary interval so we can clear it
+    const origInterval = this._interval;
+    this._interval = {
+      _ids: [origInterval, melTimer],
+    };
+    // Override clearInterval logic
+    const origStop = this.stop.bind(this);
+    // Patch: store both intervals for cleanup
+    this._extraIntervals = [melTimer];
+  },
+};
+
+// Patch music.stop to also clear extra intervals
+const _origMusicStop = music.stop.bind(music);
+music.stop = function() {
+  if (music._extraIntervals) {
+    for (const id of music._extraIntervals) clearInterval(id);
+    music._extraIntervals = [];
+  }
+  // Handle compound interval object from psychedelic
+  if (music._interval && music._interval._ids) {
+    for (const id of music._interval._ids) clearInterval(id);
+    music._interval = null;
+  }
+  _origMusicStop();
 };
 
 // ─── Leaderboard (localStorage) ──────────────────────────────────────────────
@@ -413,7 +1007,7 @@ function lbAdd(name, s, w) {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let W, H;
-// States: title | playing | dead | gameover | enterName | leaderboard
+// States: title | themes | playing | dead | gameover | enterName | leaderboard
 let state   = 'title';
 let score, hiScore = 0, lives, wave;
 let ship, bullets, asteroids, particles, shards, ufo;
@@ -428,6 +1022,7 @@ let extraLifeMsg   = 0;  // countdown timer (seconds) for the "EXTRA LIFE!" bann
 // Heartbeat
 let beatTimer = 0;
 let beatPhase = 0;  // alternates 0 / 1
+let psychHue  = 0;  // global hue rotation angle for psychedelic mode (degrees)
 
 // Leaderboard name entry
 let pendingName   = '';
@@ -457,6 +1052,14 @@ window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
 
+  if (state === 'themes') {
+    if (e.code === 'Escape') goToTitle();
+    if (e.code === 'ArrowUp')   themeSelectIndex = Math.max(0, themeSelectIndex - 1);
+    if (e.code === 'ArrowDown') themeSelectIndex = Math.min(THEME_LIST.length - 1, themeSelectIndex + 1);
+    if (e.code === 'Enter' || e.code === 'Space') activateOrPurchasePack(themeSelectIndex);
+    return;
+  }
+
   if (state === 'enterName') {
     if (e.code === 'Enter') submitName();
     return;  // block all game keys during name entry
@@ -474,6 +1077,7 @@ window.addEventListener('keydown', e => {
 
   if (state === 'title') {
     if (e.code === 'Space' || e.code === 'Enter') startGame();
+    if (e.code === 'KeyT') { state = 'themes'; themeSelectIndex = 0; }
   }
 });
 
@@ -504,11 +1108,21 @@ canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   resumeAudio();
 
+  if (state === 'themes') { handleThemesTouch(e); return; }
+
   if (state === 'leaderboard') { goToTitle(); return; }
 
   if (state === 'gameover' && gameOverDelay <= 0) { handleGameOverContinue(); return; }
 
-  if (state === 'title') { startGame(); return; }
+  if (state === 'title') {
+    // Check if tap is in lower portion — open themes screen
+    for (const t of e.changedTouches) {
+      if (t.clientY > canvas.height * 0.46 && t.clientY < canvas.height * 0.56) {
+        state = 'themes'; themeSelectIndex = 0; return;
+      }
+    }
+    startGame(); return;
+  }
 
   if (state === 'enterName') {
     nameInput.focus();  // re-open keyboard if dismissed
@@ -561,6 +1175,23 @@ function wrap(v, max) { return ((v % max) + max) % max; }
 function dist(ax, ay, bx, by) {
   const dx = ax - bx, dy = ay - by;
   return Math.sqrt(dx*dx + dy*dy);
+}
+
+function hslRotate(baseHex, hueShift) {
+  const r = parseInt(baseHex.slice(1,3),16)/255;
+  const g = parseInt(baseHex.slice(3,5),16)/255;
+  const b = parseInt(baseHex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b), d = max-min;
+  let h = 0, s = 0;
+  const l = (max+min)/2;
+  if (d > 0) {
+    s = d / (1 - Math.abs(2*l - 1));
+    if (max===r) h = ((g-b)/d + (g<b?6:0)) * 60;
+    else if (max===g) h = ((b-r)/d + 2) * 60;
+    else h = ((r-g)/d + 4) * 60;
+  }
+  h = (h + hueShift) % 360;
+  return `hsl(${Math.round(h)},${Math.round(s*100)}%,${Math.round(l*100)}%)`;
 }
 
 // ─── CRT phosphor glow helpers ───────────────────────────────────────────────
@@ -617,15 +1248,19 @@ function drawShip(s) {
     s.flashTimer = FLASH_INTERVAL;
   }
   ctx.save();
-  setGlow(8);
-  drawPoly(SHIP_SHAPE, s.x, s.y, s.angle, 1, '#fff');
+  const shipC = activeTheme.id === 'psychedelic'
+    ? hslRotate(activeTheme.shipColor, psychHue)
+    : activeTheme.shipColor;
+  setGlow(activeTheme.shipGlow);
+  ctx.shadowColor = shipC;
+  drawPoly(SHIP_SHAPE, s.x, s.y, s.angle, 1, shipC);
 
   if (s.thrustOn) {
     const flicker = rand(0.5, 1.0);
     ctx.save();
     ctx.translate(s.x, s.y);
     ctx.rotate(s.angle);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = activeTheme.thrustColor;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(-SHIP_SIZE * 0.35, SHIP_SIZE * 0.4);
@@ -726,8 +1361,12 @@ function updateAsteroid(a, dt) {
 
 function drawAsteroid(a) {
   ctx.save();
-  setGlow(8);
-  ctx.strokeStyle = '#ddd';
+  const astC = activeTheme.id === 'psychedelic'
+    ? hslRotate(activeTheme.asteroidColor, psychHue + a.angle * 30)
+    : activeTheme.asteroidColor;
+  setGlow(activeTheme.asteroidGlow);
+  ctx.shadowColor = astC;
+  ctx.strokeStyle = astC;
   ctx.lineWidth   = 1.5;
   ctx.translate(a.x, a.y);
   ctx.rotate(a.angle);
@@ -779,8 +1418,13 @@ function drawBullet(b) {
   const ny = b.vy / spd;
 
   ctx.save();
-  setGlow(10);
-  ctx.fillStyle = b.isUFO ? '#f55' : '#fff';
+  setGlow(activeTheme.bulletGlow);
+  const bulC = activeTheme.id === 'psychedelic'
+    ? hslRotate(activeTheme.bulletColor, psychHue * 2)
+    : activeTheme.bulletColor;
+  ctx.fillStyle = b.isUFO
+    ? (activeTheme.id === 'neonOcean' ? '#ff4466' : '#f55')
+    : bulC;
   ctx.beginPath();
   ctx.arc(b.x, b.y, 2.2, 0, TAU);
   ctx.fill();
@@ -854,9 +1498,12 @@ function drawShard(s) {
   const cy = Math.sin(s.lineAngle) * s.len * 0.5;
   ctx.save();
   ctx.globalAlpha = alpha;
-  setGlow(6);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth   = 1.5;
+  const shdC = activeTheme.id === 'psychedelic'
+    ? hslRotate(activeTheme.shardColor, psychHue + s.lineAngle * 60)
+    : activeTheme.shardColor;
+  setGlow(activeTheme.shardGlow);
+  ctx.strokeStyle = shdC;
+  ctx.lineWidth   = activeTheme.id === 'neonOcean' ? 2.0 : 1.5;
   ctx.lineCap     = 'round';
   ctx.beginPath();
   ctx.moveTo(s.x - cx, s.y - cy);
@@ -913,12 +1560,11 @@ const UFO_TOP   = [[-10,-10],[-6,-20],[6,-20],[10,-10]];
 
 function drawUFO(u) {
   const sc    = u.type === 'big' ? 1.25 : 0.7;  // big=1.25×, small=0.7×
-  const color = '#fff';
   ctx.save();
-  setGlow(8);
+  setGlow(activeTheme.ufoGlow);
   ctx.translate(u.x, u.y);
   ctx.scale(sc, sc);
-  ctx.strokeStyle = color;
+  ctx.strokeStyle = activeTheme.ufoColor;
   ctx.lineWidth   = 2;
   ctx.beginPath();
   ctx.moveTo(UFO_SHAPE[0][0], UFO_SHAPE[0][1]);
@@ -951,8 +1597,12 @@ function checkCollisions() {
       if (circlesOverlap(b.x, b.y, 3, a.x, a.y, a.r)) {
         hit = true;
         if (!b.isUFO) {
+          const prevScore = score;
           score += ASTEROID_SCORES[a.size];
           if (score >= nextExtraLife) { lives = Math.min(lives + 1, 6); nextExtraLife += 10000; extraLifeMsg = 1.5; }
+          if (prevScore < 10000 && score >= 10000 && activeTheme.id !== 'base') {
+            Steam.unlockAchievement('THEME_SCORE_10K_' + activeTheme.id.toUpperCase());
+          }
         }
         newAsteroids.push(...splitAsteroid(a));
         asteroids.splice(i, 1);
@@ -972,8 +1622,12 @@ function checkCollisions() {
     if (!hit && !b.isUFO && ufo && !ufo.dead) {
       if (circlesOverlap(b.x, b.y, 3, ufo.x, ufo.y, ufo.size)) {
         hit = true;
+        const prevScore2 = score;
         score += ufo.score;
         if (score >= nextExtraLife) { lives = Math.min(lives + 1, 6); nextExtraLife += 10000; extraLifeMsg = 1.5; }
+        if (prevScore2 < 10000 && score >= 10000 && activeTheme.id !== 'base') {
+          Steam.unlockAchievement('THEME_SCORE_10K_' + activeTheme.id.toUpperCase());
+        }
         sfx.explode('large');
         spawnParticles(ufo.x, ufo.y, '#fff', 14);
         sfx.ufoStop();
@@ -1046,6 +1700,7 @@ function killShip() {
 
   if (lives <= 0) {
     sfx.ufoStop();
+    music.stop();
     state = 'gameover';
     gameOverDelay = 1.5;
     if (score > hiScore) hiScore = score;
@@ -1095,7 +1750,9 @@ function drawHUD() {
 
   // ── Top-left: score (no label) ───────────────────────────────────────────
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = activeTheme.id === 'psychedelic'
+    ? hslRotate(activeTheme.hudScoreColor, psychHue)
+    : activeTheme.hudScoreColor;
   ctx.font      = `bold ${scoreSize}px monospace`;
   setGlow(4);
   ctx.fillText(String(score).padStart(6, '0'), 20, topY);
@@ -1103,13 +1760,13 @@ function drawHUD() {
 
   // ── Top-center: hi-score number only (small, muted) ──────────────────────
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#555';
+  ctx.fillStyle = activeTheme.hudHiColor;
   ctx.font      = `${labelSize}px monospace`;
   ctx.fillText(String(hiScore).padStart(6, '0'), W / 2, labelSize + 4);
 
   // ── Top-right: WAVE number ────────────────────────────────────────────────
   ctx.textAlign = 'right';
-  ctx.fillStyle = '#444';
+  ctx.fillStyle = activeTheme.hudWaveColor;
   ctx.font      = `${labelSize}px monospace`;
   ctx.fillText('WAVE ' + wave, W - 20, labelSize + 4);
 
@@ -1121,7 +1778,7 @@ function drawHUD() {
     ctx.save();
     ctx.translate(20 + lifeSpacing * 0.5 + i * lifeSpacing, lifeIconY);
     ctx.rotate(-Math.PI / 2);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = activeTheme.hudLifeColor;
     ctx.lineWidth   = 1.2;
     const s = SHIP_SIZE * lifeScale;
     ctx.beginPath();
@@ -1137,7 +1794,7 @@ function drawHUD() {
   // ── Extra life notification banner ───────────────────────────────────────
   if (extraLifeMsg > 0) {
     ctx.globalAlpha = Math.min(1, extraLifeMsg / 0.4);
-    ctx.fillStyle   = '#fff';
+    ctx.fillStyle   = activeTheme.extraLifeColor;
     ctx.font        = `bold ${Math.max(22, Math.round(W * 0.035))}px monospace`;
     ctx.textAlign   = 'center';
     ctx.fillText('EXTRA LIFE!', W / 2, H * 0.20);
@@ -1226,8 +1883,19 @@ function drawMobileHUD() {
 // ─── Screens ──────────────────────────────────────────────────────────────────
 function drawTitle() {
   W = canvas.width; H = canvas.height;
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = activeTheme.bgColor;
   ctx.fillRect(0, 0, W, H);
+  // Neon Ocean: deep-sea vignette on title screen
+  if (activeTheme.id === 'neonOcean') {
+    const vg = ctx.createRadialGradient(
+      W/2, H/2, Math.min(W,H) * 0.3,
+      W/2, H/2, Math.min(W,H) * 0.85
+    );
+    vg.addColorStop(0, 'rgba(0,8,16,0)');
+    vg.addColorStop(1, 'rgba(0,2,12,0.7)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
   drawStars();
 
   // Background drifting asteroids
@@ -1257,8 +1925,20 @@ function drawTitle() {
   }
 
   // "1979" — always solid, drifts to center as name fades
-  ctx.fillStyle = '#FFD700';
+  const yearColor = activeTheme.id === 'base' ? '#FFD700'
+    : activeTheme.id === 'neonOcean' ? '#00ffcc'
+    : hslRotate('#FFD700', psychHue);
+  ctx.fillStyle = yearColor;
   ctx.fillText(' 1979', titleNameAlpha > 0 ? fullX + w1 : soloX, titleY);
+
+  // Theme name badge below the year
+  if (activeTheme.id !== 'base') {
+    const badgeY = titleY + titleSize * 0.5;
+    ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
+    ctx.fillStyle = activeTheme.hudHiColor;
+    ctx.textAlign = 'center';
+    ctx.fillText('[ ' + activeTheme.name + ' VIBE ]', W / 2, badgeY);
+  }
 
   clearGlow();
   ctx.textAlign = 'center';
@@ -1267,9 +1947,13 @@ function drawTitle() {
   ctx.font = `${Math.min(20, W * 0.033)}px monospace`;
   ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE OR ENTER', W / 2, H * 0.44);
 
+  ctx.fillStyle = '#FFD700';
+  ctx.font = `bold ${Math.min(15, W * 0.024)}px monospace`;
+  ctx.fillText(isMobile ? 'VIBE PACKS' : 'T \u2014 VIBE PACKS', W / 2, H * 0.51);
+
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.font = '14px monospace';
-  ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.53);
+  ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.56);
 
   // Mini leaderboard peek — top 3 scores
   const lb = lbLoad();
@@ -1358,6 +2042,133 @@ function drawEnterName() {
   ctx.font = '14px monospace';
   ctx.fillText('ENTER to confirm', W / 2, H * 0.73);
   if (isMobile) ctx.fillText('(type on your keyboard)', W / 2, H * 0.79);
+}
+
+// ─── Theme Select Screen ──────────────────────────────────────────────────────
+function drawThemeSelect() {
+  W = canvas.width; H = canvas.height;
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.min(36, W * 0.058)}px monospace`;
+  setGlow(6);
+  ctx.fillText('VIBE PACKS', W / 2, H * 0.14);
+  clearGlow();
+
+  const rowH   = Math.min(H * 0.16, 88);
+  const startY = H * 0.24;
+  const padX   = Math.max(30, W * 0.08);
+
+  THEME_LIST.forEach((pack, i) => {
+    const y       = startY + i * rowH;
+    const owned   = DLC.isUnlocked(pack.id);
+    const active  = activeTheme.id === pack.id;
+    const hl      = i === themeSelectIndex;
+
+    // Row background highlight
+    if (hl) {
+      ctx.globalAlpha = 0.1;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(padX, y, W - padX * 2, rowH - 8);
+      ctx.globalAlpha = 1;
+    }
+
+    // Left: theme name + description
+    ctx.textAlign = 'left';
+    ctx.fillStyle = active ? '#FFD700' : owned ? '#fff' : '#555';
+    ctx.font = `bold ${Math.min(22, W * 0.034)}px monospace`;
+    ctx.fillText(pack.name, padX + 16, y + rowH * 0.38);
+
+    ctx.fillStyle = active ? '#ccaa00' : owned ? '#888' : '#333';
+    ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
+    ctx.fillText(pack.desc, padX + 16, y + rowH * 0.68);
+
+    // Right: status badge
+    ctx.textAlign = 'right';
+    const badgeX = W - padX - 16;
+    if (active) {
+      ctx.fillStyle = '#FFD700';
+      ctx.font = `bold ${Math.min(14, W * 0.022)}px monospace`;
+      ctx.fillText('ACTIVE', badgeX, y + rowH * 0.52);
+    } else if (owned) {
+      ctx.fillStyle = '#aaa';
+      ctx.font = `${Math.min(14, W * 0.022)}px monospace`;
+      ctx.fillText('SELECT', badgeX, y + rowH * 0.52);
+    } else {
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.min(16, W * 0.025)}px monospace`;
+      ctx.fillText(pack.price, badgeX, y + rowH * 0.42);
+      ctx.fillStyle = '#555';
+      ctx.font = `${Math.min(12, W * 0.018)}px monospace`;
+      ctx.fillText('TAP TO UNLOCK', badgeX, y + rowH * 0.66);
+    }
+
+    // Divider
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padX, y + rowH - 4);
+    ctx.lineTo(W - padX, y + rowH - 4);
+    ctx.stroke();
+  });
+
+  // Footer
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#333';
+  ctx.font = '13px monospace';
+  const footer = isMobile
+    ? 'TAP ROW TO SELECT \u2022 RESTORE PURCHASES BELOW'
+    : 'ARROW KEYS TO NAVIGATE   ENTER TO SELECT   ESC TO BACK';
+  ctx.fillText(footer, W / 2, H * 0.88);
+
+  if (isMobile) {
+    ctx.fillStyle = '#222';
+    ctx.font = '12px monospace';
+    ctx.fillText('RESTORE PURCHASES', W / 2, H * 0.94);
+  }
+}
+
+function handleThemesTouch(e) {
+  const W = canvas.width, H = canvas.height;
+  const rowH   = Math.min(H * 0.16, 88);
+  const startY = H * 0.24;
+
+  for (const t of e.changedTouches) {
+    const ty = t.clientY;
+
+    // Restore purchases tap area
+    if (ty > H * 0.91) { DLC.restore(); return; }
+
+    const i = Math.floor((ty - startY) / rowH);
+    if (i >= 0 && i < THEME_LIST.length) {
+      activateOrPurchasePack(i);
+      return;
+    }
+  }
+}
+
+function activateOrPurchasePack(index) {
+  const pack = THEME_LIST[index];
+  if (!pack) return;
+
+  if (DLC.isUnlocked(pack.id)) {
+    setTheme(pack.id);
+    // If a theme changes audio context settings, restart UFO sound
+    if (ufo) { sfx.ufoStop(); sfx.ufoStart(ufo.type); }
+    // Return to title screen so the player can see the theme applied
+    goToTitle();
+  } else {
+    DLC.purchase(pack.id, () => {
+      // onSuccess callback — called by Steam/IAP wrapper on completion
+      try { localStorage.setItem('1979_dlc_' + pack.id, '1'); } catch (_) {}
+      setTheme(pack.id);
+      goToTitle();
+    });
+  }
 }
 
 function drawLeaderboard() {
@@ -1461,13 +2272,16 @@ function startGame() {
   ship         = makeShip();
   spawnWave();
   state = 'playing';
+  music.start();
 }
 
 let titleNameAlpha     = 1;    // opacity of "ASTEROIDS" — fades to 0
 let titleNameFadeDelay = 2.2;  // seconds before fade begins
 
 function initTitle() {
+  loadSavedTheme();
   sfx.stopAll();
+  music.stop();
   wave      = 1;  // needed by makeAsteroid speed formula
   asteroids = [];
   particles = [];
@@ -1488,6 +2302,7 @@ function loop(ts) {
   const dt = Math.min((ts - lastTime) / 1000, 0.05);
   lastTime = ts;
   W = canvas.width; H = canvas.height;
+  if (activeTheme.id === 'psychedelic') psychHue = (psychHue + 40 * dt) % 360;
 
   // ── Title ──
   if (state === 'title') {
@@ -1501,6 +2316,12 @@ function loop(ts) {
       titleNameAlpha = Math.max(0, titleNameAlpha - dt * 0.55);
     }
     drawTitle();
+    return;
+  }
+
+  // ── Theme select ──
+  if (state === 'themes') {
+    drawThemeSelect();
     return;
   }
 
@@ -1562,7 +2383,13 @@ function loop(ts) {
     if (asteroids.length === 0 && !ufo) {
       if (waveDelay <= 0) waveDelay = 2.5;
       waveDelay -= dt;
-      if (waveDelay <= 0) { wave++; spawnWave(); ufoTimer = 0; waveDelay = 0; }
+      if (waveDelay <= 0) {
+        wave++; spawnWave(); ufoTimer = 0; waveDelay = 0;
+        // Theme-specific Steam achievements at wave 5
+        if (wave === 5 && activeTheme.id !== 'base') {
+          Steam.unlockAchievement('THEME_WAVE_5_' + activeTheme.id.toUpperCase());
+        }
+      }
     }
 
     checkCollisions();
@@ -1572,7 +2399,7 @@ function loop(ts) {
     const beatInterval = Math.max(0.22, 1.0 - numThings * 0.055);
     beatTimer -= dt;
     if (beatTimer <= 0) {
-      sfx.beat(beatPhase === 0 ? 110 : 85);
+      sfx.beat(beatPhase === 0 ? activeTheme.sfxBeatFreqA : activeTheme.sfxBeatFreqB);
       beatPhase = 1 - beatPhase;
       beatTimer = beatInterval;
     }
@@ -1584,8 +2411,19 @@ function loop(ts) {
   }
 
   // ── Draw ──
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = activeTheme.bgColor;
   ctx.fillRect(0, 0, W, H);
+  // Neon Ocean: deep-sea vignette
+  if (activeTheme.id === 'neonOcean') {
+    const vg = ctx.createRadialGradient(
+      W/2, H/2, Math.min(W,H) * 0.3,
+      W/2, H/2, Math.min(W,H) * 0.85
+    );
+    vg.addColorStop(0, 'rgba(0,8,16,0)');
+    vg.addColorStop(1, 'rgba(0,2,12,0.7)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
   drawStars();
 
   for (const a of asteroids) drawAsteroid(a);
