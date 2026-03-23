@@ -378,18 +378,18 @@ const THEMES = {
     sfxUfoBigFreq:      175,
     sfxUfoSmallFreq:    490,
     modifiers: {
-      rotationMult:      1.0,
+      rotationMult:      1.15,
       frictionVal:       0.97,
-      asteroidSpeedMult: 1.0,
-      asteroidSizeMult:  1.0,
-      bulletBounce:      false,
+      asteroidSpeedMult: 0.78,
+      asteroidSizeMult:  1.15,
+      bulletBounce:      true,
       bulletSplitChance: 0.0,
       oceanCurrent:      false,
       timeDilation:      false,
       ghostTrail:        false,
-      honorCombo:        false,
-      oniRock:           false,
-      comboWindow:       0,
+      honorCombo:        true,
+      oniRock:           true,
+      comboWindow:       3.5,
       wakeTrail:         false,
     },
   },
@@ -1326,6 +1326,8 @@ let currentTimer  = 0;      // time until next current shift
 let shipTrail     = [];     // array of {x,y,angle,alpha} for ghost trail
 let trailTimer    = 0;      // samples ship position every 50ms
 let oceanRings    = [];     // expanding ring waves (neonOcean only)
+let oniRocks      = [];     // tracked separately for reference (feudalJapan)
+let katanaSlash   = null;   // { x, y, angle, life, maxLife } katana arc VFX
 
 // ─── DOM name input ───────────────────────────────────────────────────────────
 const nameInput = document.getElementById('nameInput');
@@ -1594,6 +1596,14 @@ function updateShip(s, dt) {
   if (left)  s.angle -= rotSpd * dt;
   if (right) s.angle += rotSpd * dt;
 
+  // Katana slash VFX (Feudal Japan)
+  if (activeTheme.id === 'feudalJapan' && !s.dead) {
+    const rotDelta = (left ? -1 : right ? 1 : 0) * rotSpd * dt;
+    if (Math.abs(rotDelta) > 0.01) {
+      katanaSlash = { x: s.x, y: s.y, angle: s.angle, life: 0.18, maxLife: 0.18 };
+    }
+  }
+
   const wasThrustOn = s.thrustOn;
   s.thrustOn = thrust;
 
@@ -1671,6 +1681,7 @@ function makeAsteroid(x, y, size) {
     rot: rand(-1.5, 1.5),
     angle: 0,
     size, r, verts,
+    flashTimer: 0, isOni: false,
   };
 }
 
@@ -1691,12 +1702,31 @@ function spawnWave() {
     } while (dist(x, y, ship.x, ship.y) < 160);
     asteroids.push(makeAsteroid(x, y, size));
   }
+
+  // Oni Rock: inject boss rock on every 5th wave (Feudal Japan only)
+  if (activeTheme.modifiers.oniRock && wave % 5 === 0 && wave > 0) {
+    let ox, oy;
+    do {
+      ox = rand(0, canvas.width);
+      oy = rand(0, canvas.height);
+    } while (dist(ox, oy, ship.x, ship.y) < 220);
+    const oni = makeAsteroid(ox, oy, 'large');
+    oni.isOni = true;
+    oni.hp    = 3;
+    oni.maxHp = 3;
+    const toPlayer = Math.atan2(ship.y - oy, ship.x - ox);
+    const oniSpd   = ASTEROID_SPEED_BASE * getLevelCfg().spd * 0.65;
+    oni.vx = Math.cos(toPlayer) * oniSpd;
+    oni.vy = Math.sin(toPlayer) * oniSpd;
+    asteroids.push(oni);
+  }
 }
 
 function updateAsteroid(a, dt) {
   a.x = wrap(a.x + a.vx * dt, canvas.width);
   a.y = wrap(a.y + a.vy * dt, canvas.height);
   a.angle += a.rot * dt;
+  if (a.flashTimer > 0) a.flashTimer -= dt;
 }
 
 function drawAsteroid(a) {
@@ -1729,6 +1759,38 @@ function drawAsteroid(a) {
   for (let i = 1; i < a.verts.length; i++) ctx.lineTo(a.verts[i][0], a.verts[i][1]);
   ctx.closePath();
   ctx.stroke();
+  // Oni Rock overlays (drawn while still in translated/rotated context)
+  if (a.isOni) {
+    ctx.save();
+    setGlow(16);
+    ctx.shadowColor = '#ff2200';
+    ctx.strokeStyle = '#cc2200';
+    ctx.lineWidth   = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, a.r * 1.1, 0, TAU);
+    ctx.stroke();
+    clearGlow();
+    // HP pips above rock
+    const pipSpacing = 14;
+    const totalW = (a.maxHp - 1) * pipSpacing;
+    for (let h = 0; h < a.maxHp; h++) {
+      const px = -totalW / 2 + h * pipSpacing;
+      ctx.beginPath();
+      ctx.arc(px, -a.r * 1.3, 4, 0, TAU);
+      ctx.fillStyle = h < a.hp ? '#ff2200' : '#333';
+      ctx.fill();
+    }
+    // Flash white on hit
+    if (a.flashTimer > 0) {
+      ctx.globalAlpha = (a.flashTimer / 0.15) * 0.7;
+      ctx.fillStyle   = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, 0, a.r, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -1755,6 +1817,7 @@ function fireBullet(from, angle, isUFO) {
     vy:    Math.sin(angle) * BULLET_SPEED + (isUFO ? 0 : from.vy),
     life:  isUFO ? UFO_BULLET_LIFE : BULLET_LIFE,
     isUFO,
+    hasBounced: false,
   });
 }
 
@@ -1762,6 +1825,22 @@ function updateBullet(b, dt) {
   b.x    = wrap(b.x + b.vx * dt, canvas.width);
   b.y    = wrap(b.y + b.vy * dt, canvas.height);
   b.life -= dt;
+  // Shuriken bounce (Feudal Japan): reflect off edges once
+  if (activeTheme.modifiers.bulletBounce && !b.isUFO && !b.hasBounced) {
+    const margin = 4;
+    if (b.x < margin || b.x > canvas.width - margin) {
+      b.vx *= -1;
+      b.x   = Math.max(margin, Math.min(canvas.width - margin, b.x));
+      b.hasBounced = true;
+      b.life = Math.min(b.life, BULLET_LIFE * 0.55);
+    }
+    if (b.y < margin || b.y > canvas.height - margin) {
+      b.vy *= -1;
+      b.y   = Math.max(margin, Math.min(canvas.height - margin, b.y));
+      b.hasBounced = true;
+      b.life = Math.min(b.life, BULLET_LIFE * 0.55);
+    }
+  }
 }
 
 function drawBullet(b) {
@@ -1996,6 +2075,20 @@ function checkCollisions() {
             Steam.unlockAchievement('THEME_SCORE_10K_' + activeTheme.id.toUpperCase());
           }
         }
+        // Oni Rock damage handling
+        if (a.isOni) {
+          a.hp--;
+          a.flashTimer = 0.15;
+          score += 300;
+          if (a.hp > 0) {
+            newAsteroids.push(a);
+            asteroids.splice(i, 1);
+            hit = true;
+            break;
+          } else {
+            score += 500;
+          }
+        }
         newAsteroids.push(...splitAsteroid(a));
         // Psychedelic fractal split: child bullets on hit
         if (!b.isUFO && activeTheme.modifiers.bulletSplitChance > 0
@@ -2187,12 +2280,17 @@ function drawHUD() {
 
   // ── Combo multiplier display ─────────────────────────────────────────────
   if (comboMult > 1) {
-    const comboColor = activeTheme.id === 'psychedelic'
-      ? hslRotate('#ffcc00', psychHue) : '#cc4400';
-    ctx.fillStyle = comboColor;
     ctx.font = `bold ${Math.min(18, W * 0.028)}px monospace`;
     ctx.textAlign = 'right';
-    ctx.fillText(comboMult + 'x COMBO', W - 20, H - 14);
+    if (activeTheme.id === 'feudalJapan') {
+      ctx.fillStyle = '#cc4400';
+      ctx.fillText('HONOR ' + '|'.repeat(comboMult - 1), W - 20, H - 14);
+    } else {
+      const comboColor = activeTheme.id === 'psychedelic'
+        ? hslRotate('#ffcc00', psychHue) : '#cc4400';
+      ctx.fillStyle = comboColor;
+      ctx.fillText(comboMult + 'x COMBO', W - 20, H - 14);
+    }
   }
 
   // ── Ocean current direction indicator (Neon Ocean only) ─────────────────
@@ -2733,7 +2831,7 @@ function startGame() {
   dilationTimer = 0; dilationPhase = 0; dilationNext = 40; dilationFlash = 0;
   currentAngle = rand(0, TAU); currentSpeed = 0; currentTimer = 0;
   shipTrail = []; trailTimer = 0;
-  oceanRings = [];
+  oceanRings = []; oniRocks = []; katanaSlash = null;
   ship         = makeShip();
   spawnWave();
   state = 'playing';
@@ -2807,6 +2905,12 @@ function loop(ts) {
   // ── Update (playing / dead / gameover) ──
   if (gameOverDelay > 0) gameOverDelay -= dt;
   if (extraLifeMsg  > 0) extraLifeMsg  -= dt;
+
+  // Katana slash timer (raw dt)
+  if (katanaSlash) {
+    katanaSlash.life -= dt;
+    if (katanaSlash.life <= 0) katanaSlash = null;
+  }
 
   // Combo timer decay (raw dt)
   if (comboTimer > 0) {
@@ -2983,6 +3087,23 @@ function loop(ts) {
     });
   }
   if (ufo)  drawUFO(ufo);
+  // Katana slash arc (Feudal Japan)
+  if (katanaSlash && activeTheme.id === 'feudalJapan') {
+    const alpha = katanaSlash.life / katanaSlash.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.7;
+    ctx.strokeStyle = '#cc2200';
+    ctx.lineWidth   = 2;
+    ctx.lineCap     = 'round';
+    ctx.shadowBlur  = 12;
+    ctx.shadowColor = '#cc2200';
+    ctx.translate(katanaSlash.x, katanaSlash.y);
+    ctx.rotate(katanaSlash.angle);
+    ctx.beginPath();
+    ctx.arc(0, 0, SHIP_SIZE * 1.4, -Math.PI * 0.7, Math.PI * 0.7);
+    ctx.stroke();
+    ctx.restore();
+  }
   if (ship) drawShip(ship);
   // Dilation flash overlay
   if (dilationFlash > 0 && activeTheme.id === 'psychedelic') {
