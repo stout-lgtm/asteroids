@@ -327,13 +327,13 @@ const THEMES = {
       asteroidSpeedMult: 1.0,
       asteroidSizeMult:  1.0,
       bulletBounce:      false,
-      bulletSplitChance: 0.0,
+      bulletSplitChance: 0.25,
       oceanCurrent:      false,
-      timeDilation:      false,
-      ghostTrail:        false,
-      honorCombo:        false,
+      timeDilation:      true,
+      ghostTrail:        true,
+      honorCombo:        true,
       oniRock:           false,
-      comboWindow:       0,
+      comboWindow:       1.8,
       wakeTrail:         false,
     },
   },
@@ -1319,6 +1319,7 @@ let comboMult     = 1;      // active score multiplier (1–4)
 let dilationTimer = 0;      // time dilation phase timer (psychedelic)
 let dilationPhase = 0;      // 0=normal 1=slow 2=fast
 let dilationNext  = 40;     // seconds until next dilation event
+let dilationFlash = 0;      // countdown for psychedelic screen flash alpha
 let currentAngle  = 0;      // ocean current direction in radians
 let currentSpeed  = 0;      // ocean current magnitude
 let currentTimer  = 0;      // time until next current shift
@@ -1615,6 +1616,15 @@ function updateShip(s, dt) {
 
   if (s.invincible > 0) s.invincible -= dt;
 
+  if (activeTheme.modifiers.ghostTrail && !s.dead) {
+    trailTimer -= dt;
+    if (trailTimer <= 0) {
+      trailTimer = 0.05;
+      shipTrail.unshift({ x: s.x, y: s.y, angle: s.angle });
+      if (shipTrail.length > 4) shipTrail.length = 4;
+    }
+  }
+
   if (activeTheme.modifiers.wakeTrail && s.thrustOn) {
     trailTimer -= dt;
     if (trailTimer <= 0) {
@@ -1768,7 +1778,7 @@ function drawBullet(b) {
     : activeTheme.bulletColor;
   ctx.fillStyle = b.isUFO
     ? (activeTheme.id === 'neonOcean' ? '#ff4466' : '#f55')
-    : bulC;
+    : (b.isSplit ? hslRotate('#ffcc00', psychHue * 1.5) : bulC);
   ctx.beginPath();
   ctx.arc(b.x, b.y, 2.2, 0, TAU);
   ctx.fill();
@@ -1987,6 +1997,27 @@ function checkCollisions() {
           }
         }
         newAsteroids.push(...splitAsteroid(a));
+        // Psychedelic fractal split: child bullets on hit
+        if (!b.isUFO && activeTheme.modifiers.bulletSplitChance > 0
+            && Math.random() < activeTheme.modifiers.bulletSplitChance) {
+          const baseAngle = Math.atan2(b.vy, b.vx);
+          for (const sa of [baseAngle - 0.28, baseAngle + 0.28]) {
+            bullets.push({
+              x: a.x, y: a.y,
+              vx: Math.cos(sa) * BULLET_SPEED * 0.7,
+              vy: Math.sin(sa) * BULLET_SPEED * 0.7,
+              life: BULLET_LIFE * 0.5,
+              isUFO: false, isSplit: true,
+            });
+          }
+        }
+        // Combo system
+        if (activeTheme.modifiers.comboWindow > 0) {
+          comboCount++;
+          comboTimer = activeTheme.modifiers.comboWindow;
+          comboMult  = Math.min(4, 1 + Math.floor(comboCount / 3));
+          score += ASTEROID_SCORES[a.size] * (comboMult - 1);
+        }
         asteroids.splice(i, 1);
         break;
       }
@@ -2077,6 +2108,7 @@ function killShip() {
       rotSpeed: rand(-6, 6), life, maxLife: life,
     });
   }
+  comboCount = 0; comboMult = 1; comboTimer = 0;
   lives--;
   ship.dead = true;
 
@@ -2152,6 +2184,16 @@ function drawHUD() {
   ctx.fillStyle = activeTheme.hudWaveColor;
   ctx.font      = `${labelSize}px monospace`;
   ctx.fillText('WAVE ' + wave, W - 20, labelSize + 4);
+
+  // ── Combo multiplier display ─────────────────────────────────────────────
+  if (comboMult > 1) {
+    const comboColor = activeTheme.id === 'psychedelic'
+      ? hslRotate('#ffcc00', psychHue) : '#cc4400';
+    ctx.fillStyle = comboColor;
+    ctx.font = `bold ${Math.min(18, W * 0.028)}px monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(comboMult + 'x COMBO', W - 20, H - 14);
+  }
 
   // ── Ocean current direction indicator (Neon Ocean only) ─────────────────
   if (activeTheme.modifiers.oceanCurrent && currentSpeed > 5) {
@@ -2688,7 +2730,7 @@ function startGame() {
   nextExtraLife = 10000;
   extraLifeMsg  = 0;
   comboCount = 0; comboTimer = 0; comboMult = 1;
-  dilationTimer = 0; dilationPhase = 0; dilationNext = 40;
+  dilationTimer = 0; dilationPhase = 0; dilationNext = 40; dilationFlash = 0;
   currentAngle = rand(0, TAU); currentSpeed = 0; currentTimer = 0;
   shipTrail = []; trailTimer = 0;
   oceanRings = [];
@@ -2765,6 +2807,47 @@ function loop(ts) {
   // ── Update (playing / dead / gameover) ──
   if (gameOverDelay > 0) gameOverDelay -= dt;
   if (extraLifeMsg  > 0) extraLifeMsg  -= dt;
+
+  // Combo timer decay (raw dt)
+  if (comboTimer > 0) {
+    comboTimer -= dt;
+    if (comboTimer <= 0) { comboCount = 0; comboMult = 1; }
+  }
+
+  // Time dilation (Psychedelic only, raw dt)
+  if (state === 'playing' && activeTheme.modifiers.timeDilation) {
+    dilationNext -= dt;
+    if (dilationNext <= 0 && dilationPhase === 0) {
+      dilationPhase = 1;
+      dilationTimer = 2.5;
+      dilationNext  = rand(35, 50);
+      dilationFlash = 0.35;
+    }
+    if (dilationPhase > 0) {
+      dilationTimer -= dt;
+      if (dilationTimer <= 0) {
+        if (dilationPhase === 1) {
+          dilationPhase = 2;
+          dilationTimer = 1.5;
+          dilationFlash = 0.5;
+          if (audioCtx) {
+            const t2 = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(660, t2);
+            osc.frequency.exponentialRampToValueAtTime(165, t2 + 0.3);
+            const g2 = audioCtx.createGain();
+            g2.gain.setValueAtTime(0.22, t2);
+            g2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.3);
+            osc.connect(g2); g2.connect(audioCtx.destination);
+            osc.start(t2); osc.stop(t2 + 0.32);
+          }
+        } else {
+          dilationPhase = 0;
+        }
+      }
+    }
+  }
 
   const effectiveDt = getEffectiveDt(dt);
   for (const a of asteroids) updateAsteroid(a, effectiveDt);
@@ -2884,8 +2967,32 @@ function loop(ts) {
   for (const p of particles) drawParticle(p);
   for (const s of shards)    drawShard(s);
   for (const r of oceanRings) drawRing(r);
+  // Ghost trail (Psychedelic) — drawn before ship
+  if (activeTheme.modifiers.ghostTrail && shipTrail.length > 0) {
+    shipTrail.forEach((ghost, i) => {
+      const ghostAlpha = 0.28 - i * 0.06;
+      if (ghostAlpha <= 0) return;
+      ctx.save();
+      ctx.globalAlpha = ghostAlpha;
+      const ghostC = hslRotate(activeTheme.shipColor, psychHue + i * 30);
+      setGlow(activeTheme.shipGlow * 0.5);
+      ctx.shadowColor = ghostC;
+      drawPoly(SHIP_SHAPE, ghost.x, ghost.y, ghost.angle, 1, ghostC);
+      clearGlow();
+      ctx.restore();
+    });
+  }
   if (ufo)  drawUFO(ufo);
   if (ship) drawShip(ship);
+  // Dilation flash overlay
+  if (dilationFlash > 0 && activeTheme.id === 'psychedelic') {
+    dilationFlash -= dt;
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.3, dilationFlash * 0.8);
+    ctx.fillStyle = hslRotate('#ff88ff', psychHue);
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
 
   if (state === 'playing' || state === 'dead') drawHUD();
 
