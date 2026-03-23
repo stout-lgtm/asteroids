@@ -266,19 +266,19 @@ const THEMES = {
     sfxUfoBigFreq:      140,
     sfxUfoSmallFreq:    380,
     modifiers: {
-      rotationMult:      1.0,
-      frictionVal:       0.97,
+      rotationMult:      0.82,
+      frictionVal:       0.986,
       asteroidSpeedMult: 1.0,
       asteroidSizeMult:  1.0,
       bulletBounce:      false,
       bulletSplitChance: 0.0,
-      oceanCurrent:      false,
+      oceanCurrent:      true,
       timeDilation:      false,
       ghostTrail:        false,
       honorCombo:        false,
       oniRock:           false,
       comboWindow:       0,
-      wakeTrail:         false,
+      wakeTrail:         true,
     },
   },
 
@@ -630,6 +630,18 @@ const sfx = {
       g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
       src2.connect(bp2); bp2.connect(g2); g2.connect(audioCtx.destination);
       src2.start(t); src2.stop(t + 0.32);
+      // Neon Ocean: deep underwater pressure wave
+      if (activeTheme.id === 'neonOcean') {
+        const osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(48, t);
+        osc.frequency.exponentialRampToValueAtTime(20, t + 0.4);
+        const gw = audioCtx.createGain();
+        gw.gain.setValueAtTime(0.35, t);
+        gw.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        osc.connect(gw); gw.connect(audioCtx.destination);
+        osc.start(t); osc.stop(t + 0.42);
+      }
       // Feudal Japan: taiko war drum crash
       if (activeTheme.id === 'feudalJapan') {
         const drumBuf = makeNoiseBuf(0.5);
@@ -1312,6 +1324,7 @@ let currentSpeed  = 0;      // ocean current magnitude
 let currentTimer  = 0;      // time until next current shift
 let shipTrail     = [];     // array of {x,y,angle,alpha} for ghost trail
 let trailTimer    = 0;      // samples ship position every 50ms
+let oceanRings    = [];     // expanding ring waves (neonOcean only)
 
 // ─── DOM name input ───────────────────────────────────────────────────────────
 const nameInput = document.getElementById('nameInput');
@@ -1601,6 +1614,23 @@ function updateShip(s, dt) {
   s.y   = wrap(s.y + s.vy * dt, canvas.height);
 
   if (s.invincible > 0) s.invincible -= dt;
+
+  if (activeTheme.modifiers.wakeTrail && s.thrustOn) {
+    trailTimer -= dt;
+    if (trailTimer <= 0) {
+      trailTimer = 0.04;
+      const behind = ship.angle + Math.PI / 2;
+      const ex = s.x + Math.cos(behind) * SHIP_SIZE * 0.8;
+      const ey = s.y + Math.sin(behind) * SHIP_SIZE * 0.8;
+      particles.push({
+        x: ex, y: ey,
+        vx: rand(-12, 12),
+        vy: rand(-12, 12),
+        life: 0.55, maxLife: 0.55,
+        color: '#00ffcc',
+      });
+    }
+  }
 }
 
 function doHyperspace() {
@@ -1774,6 +1804,22 @@ function drawParticle(p) {
 
 // ─── Debris shards ────────────────────────────────────────────────────────────
 function spawnShards(x, y, size) {
+  if (activeTheme.id === 'neonOcean') {
+    const cfg2 = { large: { count: 3, spd: 60 },
+                   medium:{ count: 2, spd: 80 },
+                   small: { count: 1, spd: 100 } }[size];
+    for (let i = 0; i < cfg2.count; i++) {
+      const life = rand(0.4, 0.7);
+      oceanRings.push({
+        x, y,
+        radius: ASTEROID_SIZES[size] * 0.5,
+        expandSpd: cfg2.spd * rand(0.8, 1.2),
+        life, maxLife: life,
+        color: i === 0 ? '#00ffcc' : '#0088aa',
+        alpha: 1,
+      });
+    }
+  }
   const cfg = {
     large:  { count: 12, len: 6, spd: 100, life: 0.50 },
     medium: { count:  8, len: 4, spd: 120, life: 0.38 },
@@ -1795,6 +1841,24 @@ function spawnShards(x, y, size) {
       maxLife: life,
     });
   }
+}
+
+function updateRing(r, dt) {
+  r.radius += r.expandSpd * dt;
+  r.life   -= dt;
+  r.alpha   = Math.max(0, r.life / r.maxLife);
+}
+function drawRing(r) {
+  ctx.save();
+  ctx.globalAlpha = r.alpha * 0.6;
+  ctx.strokeStyle = r.color;
+  ctx.lineWidth   = 1.5;
+  ctx.shadowBlur  = 10;
+  ctx.shadowColor = r.color;
+  ctx.beginPath();
+  ctx.arc(r.x, r.y, r.radius, 0, TAU);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function updateShard(s, dt) {
@@ -2088,6 +2152,27 @@ function drawHUD() {
   ctx.fillStyle = activeTheme.hudWaveColor;
   ctx.font      = `${labelSize}px monospace`;
   ctx.fillText('WAVE ' + wave, W - 20, labelSize + 4);
+
+  // ── Ocean current direction indicator (Neon Ocean only) ─────────────────
+  if (activeTheme.modifiers.oceanCurrent && currentSpeed > 5) {
+    const arrowX   = W / 2;
+    const arrowY   = H - 28;
+    const arrowLen = 14;
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = '#00ddff';
+    ctx.lineWidth   = 1.5;
+    ctx.translate(arrowX, arrowY);
+    ctx.rotate(currentAngle);
+    ctx.beginPath();
+    ctx.moveTo(-arrowLen, 0);
+    ctx.lineTo(arrowLen, 0);
+    ctx.moveTo(arrowLen - 5, -5);
+    ctx.lineTo(arrowLen, 0);
+    ctx.lineTo(arrowLen - 5, 5);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // ── Below score: life ship icons (slightly smaller) ──────────────────────
   const lifeScale   = iconScale * 0.72;
@@ -2606,6 +2691,7 @@ function startGame() {
   dilationTimer = 0; dilationPhase = 0; dilationNext = 40;
   currentAngle = rand(0, TAU); currentSpeed = 0; currentTimer = 0;
   shipTrail = []; trailTimer = 0;
+  oceanRings = [];
   ship         = makeShip();
   spawnWave();
   state = 'playing';
@@ -2685,9 +2771,11 @@ function loop(ts) {
   for (const b of bullets)   updateBullet(b, effectiveDt);
   for (const p of particles) updateParticle(p, effectiveDt);
   for (const s of shards)    updateShard(s, effectiveDt);
-  bullets   = bullets.filter(b => b.life > 0);
-  particles = particles.filter(p => p.life > 0);
-  shards    = shards.filter(s => s.life > 0);
+  for (const r of oceanRings) updateRing(r, dt);
+  bullets    = bullets.filter(b => b.life > 0);
+  particles  = particles.filter(p => p.life > 0);
+  shards     = shards.filter(s => s.life > 0);
+  oceanRings = oceanRings.filter(r => r.life > 0);
 
   if (state === 'playing') {
     updateShip(ship, effectiveDt);
@@ -2727,6 +2815,22 @@ function loop(ts) {
         if (wave === 5 && activeTheme.id !== 'base') {
           Steam.unlockAchievement('THEME_WAVE_5_' + activeTheme.id.toUpperCase());
         }
+      }
+    }
+
+    // Ocean current system (Neon Ocean only)
+    if (activeTheme.modifiers.oceanCurrent) {
+      currentTimer -= dt;
+      if (currentTimer <= 0) {
+        currentAngle += rand(-Math.PI * 0.6, Math.PI * 0.6);
+        currentSpeed  = rand(10, 28);
+        currentTimer  = rand(12, 20);
+      }
+      const cx = Math.cos(currentAngle) * currentSpeed * dt;
+      const cy = Math.sin(currentAngle) * currentSpeed * dt;
+      for (const a of asteroids) {
+        a.x = wrap(a.x + cx, canvas.width);
+        a.y = wrap(a.y + cy, canvas.height);
       }
     }
 
@@ -2779,6 +2883,7 @@ function loop(ts) {
   for (const b of bullets)   drawBullet(b);
   for (const p of particles) drawParticle(p);
   for (const s of shards)    drawShard(s);
+  for (const r of oceanRings) drawRing(r);
   if (ufo)  drawUFO(ufo);
   if (ship) drawShip(ship);
 
