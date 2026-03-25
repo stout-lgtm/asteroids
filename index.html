@@ -767,28 +767,42 @@ const sfx = {
   _thrustGain: null,
 
   thrustOn() {
-    if (!audioCtx || this._thrustGain) return;
-    const t   = audioCtx.currentTime;
-    const src = audioCtx.createBufferSource();
+    if (this._thrustGain) return;
+    const ac  = ensureAudioCtx();
+    if (ac.state === 'suspended') ac.resume();
+    const t   = ac.currentTime;
+    const src = ac.createBufferSource();
     src.buffer = getThrustBuf();
     src.loop   = true;
 
-    const lpf = audioCtx.createBiquadFilter();
+    const lpf = ac.createBiquadFilter();
     lpf.type = 'lowpass';
-    lpf.frequency.value = activeTheme.sfxThrustLPF;
+    // LPF cutoff per theme — high enough to be audible, low enough for rumble
+    const cutoff = activeTheme.id === 'neonOcean'   ? 320
+                 : activeTheme.id === 'psychedelic'  ? 480
+                 : activeTheme.id === 'feudalJapan'  ? 360
+                 : 400;   // base 1979
+    lpf.frequency.value = cutoff;
 
-    const g = audioCtx.createGain();
+    // Thematic resonance boost for non-base themes
+    if (activeTheme.id === 'neonOcean') {
+      lpf.Q.value = 4.0;  // bubbly underwater resonance
+    } else if (activeTheme.id === 'feudalJapan') {
+      lpf.Q.value = 2.5;  // deep taiko body
+    }
+
+    const g = ac.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.22, t + 0.06);
+    g.gain.linearRampToValueAtTime(0.28, t + 0.06);
 
-    src.connect(lpf); lpf.connect(g); g.connect(audioCtx.destination);
+    src.connect(lpf); lpf.connect(g); g.connect(ac.destination);
     src.start(t);
     this._thrustSrc  = src;
     this._thrustGain = g;
   },
 
   thrustOff() {
-    if (!this._thrustGain) return;
+    if (!this._thrustGain || !audioCtx) return;
     const t = audioCtx.currentTime;
     this._thrustGain.gain.linearRampToValueAtTime(0, t + 0.08);
     const src = this._thrustSrc;
@@ -3087,23 +3101,6 @@ function loop(ts) {
     });
   }
   if (ufo)  drawUFO(ufo);
-  // Katana slash arc (Feudal Japan)
-  if (katanaSlash && activeTheme.id === 'feudalJapan') {
-    const alpha = katanaSlash.life / katanaSlash.maxLife;
-    ctx.save();
-    ctx.globalAlpha = alpha * 0.7;
-    ctx.strokeStyle = '#cc2200';
-    ctx.lineWidth   = 2;
-    ctx.lineCap     = 'round';
-    ctx.shadowBlur  = 12;
-    ctx.shadowColor = '#cc2200';
-    ctx.translate(katanaSlash.x, katanaSlash.y);
-    ctx.rotate(katanaSlash.angle);
-    ctx.beginPath();
-    ctx.arc(0, 0, SHIP_SIZE * 1.4, -Math.PI * 0.7, Math.PI * 0.7);
-    ctx.stroke();
-    ctx.restore();
-  }
   if (ship) drawShip(ship);
   // Dilation flash overlay
   if (dilationFlash > 0 && activeTheme.id === 'psychedelic') {
