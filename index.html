@@ -575,17 +575,24 @@ const sfx = {
   shoot() {
     if (!audioCtx) return;
     const t = audioCtx.currentTime;
-    // Authentic 1979 circuit: 555 timer square wave, frequency AND amplitude
-    // both decay exponentially and simultaneously over ~80ms — "thwack-pew"
+    // 555 astable output — square wave not noise
     const osc = audioCtx.createOscillator();
     osc.type = 'square';
-    osc.frequency.setValueAtTime(activeTheme.sfxShootFreqStart, t);
-    osc.frequency.exponentialRampToValueAtTime(activeTheme.sfxShootFreqEnd, t + 0.035);
+    // Capacitor C47/C48 discharge: frequency sweeps 1800Hz→200Hz
+    // exponentially over ~38ms (RC time constant from schematic)
+    osc.frequency.setValueAtTime(1800, t);
+    osc.frequency.exponentialRampToValueAtTime(200, t + 0.038);
+    // Volume tracks frequency — coupled decay via same RC circuit
     const g = audioCtx.createGain();
-    g.gain.setValueAtTime(0.36, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + activeTheme.sfxShootDur);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + activeTheme.sfxShootDur + 0.01);
+    g.gain.setValueAtTime(0.45, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.038);
+    // Lowpass to knock off square wave harshness at high freq
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(3000, t);
+    lp.frequency.exponentialRampToValueAtTime(500, t + 0.038);
+    osc.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.042);
     // Feudal Japan: bowstring twang overlay
     if (activeTheme.id === 'feudalJapan') {
       const osc2 = audioCtx.createOscillator();
@@ -603,34 +610,30 @@ const sfx = {
   explode(size) {
     if (!audioCtx) return;
     const t = audioCtx.currentTime;
+    // Register $3600 value determines starting freq and volume.
+    // Large = $0F (max), Medium = $08, Small = $03 (from schematic).
+    const cfg = {
+      large:  { startFreq: 4800, endFreq: 55,  vol: 0.90, dur: 0.95 },
+      medium: { startFreq: 2400, endFreq: 90,  vol: 0.65, dur: 0.55 },
+      small:  { startFreq: 1200, endFreq: 200, vol: 0.42, dur: 0.22 },
+    }[size] || { startFreq: 3000, endFreq: 80, vol: 0.7, dur: 0.7 };
+    // Noise source — board uses a shift register noise generator
+    const src = audioCtx.createBufferSource();
+    src.buffer = makeNoiseBuf(cfg.dur + 0.05);
+    // Voltage-controlled lowpass — cutoff and gain track together
+    const filt = audioCtx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.setValueAtTime(cfg.startFreq, t);
+    filt.frequency.exponentialRampToValueAtTime(cfg.endFreq, t + cfg.dur);
+    filt.Q.value = 0.5;   // gentle slope — analog hardware characteristic
+    // Volume tracks the filter (coupled via same RC decay on board)
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(cfg.vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + cfg.dur);
+    src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
+    src.start(t); src.stop(t + cfg.dur + 0.05);
+    // Theme-specific overlays
     if (size === 'large') {
-      // Deep BOOM — filter starts low so it blooms rather than slaps
-      const dur  = 1.2;
-      const src1 = audioCtx.createBufferSource();
-      src1.buffer = makeNoiseBuf(dur);
-      const lp = audioCtx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(900, t);        // start low — no slap transient
-      lp.frequency.exponentialRampToValueAtTime(40, t + dur);
-      const g1 = audioCtx.createGain();
-      g1.gain.setValueAtTime(0.0, t);
-      g1.gain.linearRampToValueAtTime(1.0, t + 0.01); // 10ms attack — bloom not click
-      g1.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      src1.connect(lp); lp.connect(g1); g1.connect(audioCtx.destination);
-      src1.start(t); src1.stop(t + dur + 0.05);
-      // Second layer: low rumble body
-      const src2 = audioCtx.createBufferSource();
-      src2.buffer = makeNoiseBuf(0.3);
-      const bp2 = audioCtx.createBiquadFilter();
-      bp2.type = 'bandpass';
-      bp2.frequency.value = 160;
-      bp2.Q.value = 0.7;
-      const g2 = audioCtx.createGain();
-      g2.gain.setValueAtTime(0.5, t);
-      g2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-      src2.connect(bp2); bp2.connect(g2); g2.connect(audioCtx.destination);
-      src2.start(t); src2.stop(t + 0.32);
-      // Neon Ocean: deep underwater pressure wave
       if (activeTheme.id === 'neonOcean') {
         const osc = audioCtx.createOscillator();
         osc.type = 'sine';
@@ -642,7 +645,6 @@ const sfx = {
         osc.connect(gw); gw.connect(audioCtx.destination);
         osc.start(t); osc.stop(t + 0.42);
       }
-      // Feudal Japan: taiko war drum crash
       if (activeTheme.id === 'feudalJapan') {
         const drumBuf = makeNoiseBuf(0.5);
         const drum = audioCtx.createBufferSource();
@@ -666,77 +668,42 @@ const sfx = {
         drum.start(t); drum.stop(t + 0.55);
         body.start(t); body.stop(t + 0.35);
       }
-      // Neon Ocean: deep underwater WHOMP
-      if (activeTheme.id === 'neonOcean') {
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(55, t);
-        osc.frequency.exponentialRampToValueAtTime(25, t + 0.35);
-        const gw = audioCtx.createGain();
-        gw.gain.setValueAtTime(0.3, t);
-        gw.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-        osc.connect(gw); gw.connect(audioCtx.destination);
-        osc.start(t); osc.stop(t + 0.37);
-      }
-    } else if (size === 'medium') {
-      // Mid BANG — starts warmer, not sharp
-      const dur = 0.6;
-      const src = audioCtx.createBufferSource();
-      src.buffer = makeNoiseBuf(dur);
-      const lp = audioCtx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(1400, t);
-      lp.frequency.exponentialRampToValueAtTime(80, t + dur);
-      const g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.0, t);
-      g.gain.linearRampToValueAtTime(0.7, t + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
-      src.start(t); src.stop(t + dur + 0.02);
-      // Psychedelic: pitch-bent sawtooth sweep
-      if (activeTheme.id === 'psychedelic') {
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(320, t);
-        osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
-        const gp = audioCtx.createGain();
-        gp.gain.setValueAtTime(0.18, t);
-        gp.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-        osc.connect(gp); gp.connect(audioCtx.destination);
-        osc.start(t); osc.stop(t + 0.32);
-      }
-    } else {
-      // Small rock: short mid-low thud — lowpass not bandpass, no resonant slap
-      const dur = 0.15;
-      const src = audioCtx.createBufferSource();
-      src.buffer = makeNoiseBuf(dur + 0.02);
-      const lp = audioCtx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(2000, t);
-      lp.frequency.exponentialRampToValueAtTime(200, t + dur);
-      const g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.35, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
-      src.start(t); src.stop(t + dur + 0.02);
+    }
+    if (size === 'medium' && activeTheme.id === 'psychedelic') {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(320, t);
+      osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+      const gp = audioCtx.createGain();
+      gp.gain.setValueAtTime(0.18, t);
+      gp.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      osc.connect(gp); gp.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.32);
     }
   },
 
   beat(freq) {
     if (!audioCtx) return;
-    const t   = audioCtx.currentTime;
+    const t = audioCtx.currentTime;
+    // 555 timer output — square wave, not sine
     const osc = audioCtx.createOscillator();
-    const g   = audioCtx.createGain();
-    osc.type = 'sine';
+    osc.type = 'square';
     osc.frequency.value = freq;
-    g.gain.setValueAtTime(0.45, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start(t); osc.stop(t + 0.19);
+    // Short sharp envelope — 555 pulse character
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.55, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    // Board output filter — softens square without losing punch
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 600;
+    lp.Q.value = 1.2;
+    osc.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.13);
     // Psychedelic: harmonized overtone
     if (activeTheme.id === 'psychedelic') {
       const osc2 = audioCtx.createOscillator();
-      osc2.type = 'sine';
+      osc2.type = 'square';
       osc2.frequency.value = freq * 1.5;
       const g2 = audioCtx.createGain();
       g2.gain.setValueAtTime(0.12, t);
@@ -744,7 +711,7 @@ const sfx = {
       osc2.connect(g2); g2.connect(audioCtx.destination);
       osc2.start(t); osc2.stop(t + 0.15);
     }
-    // Feudal Japan: taiko strike overlay — noise burst adds skin-hit crack
+    // Feudal Japan: taiko strike overlay
     if (activeTheme.id === 'feudalJapan') {
       const taikoBuf = makeNoiseBuf(0.12);
       const src = audioCtx.createBufferSource();
@@ -768,45 +735,41 @@ const sfx = {
 
   thrustOn() {
     if (this._thrustGain) return;
-    const ac  = ensureAudioCtx();
+    const ac = ensureAudioCtx();
     if (ac.state === 'suspended') ac.resume();
-    const t   = ac.currentTime;
-    const src = ac.createBufferSource();
-    src.buffer = getThrustBuf();
-    src.loop   = true;
-
-    const lpf = ac.createBiquadFilter();
-    lpf.type = 'lowpass';
-    // LPF cutoff per theme — high enough to be audible, low enough for rumble
-    const cutoff = activeTheme.id === 'neonOcean'   ? 320
-                 : activeTheme.id === 'psychedelic'  ? 480
-                 : activeTheme.id === 'feudalJapan'  ? 360
-                 : 400;   // base 1979
-    lpf.frequency.value = cutoff;
-
-    // Thematic resonance boost for non-base themes
-    if (activeTheme.id === 'neonOcean') {
-      lpf.Q.value = 4.0;  // bubbly underwater resonance
-    } else if (activeTheme.id === 'feudalJapan') {
-      lpf.Q.value = 2.5;  // deep taiko body
-    }
-
+    const t = ac.currentTime;
+    // 3KHz square wave — the actual board clock
+    const osc = ac.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = 3000;
+    // Board lowpass filter shapes it into the familiar buzzy rumble
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    // Per-theme filter knee
+    const cutoff = activeTheme.id === 'neonOcean'   ? 340
+                 : activeTheme.id === 'psychedelic'  ? 500
+                 : activeTheme.id === 'feudalJapan'  ? 380
+                 : 420;   // base 1979 hardware filter knee
+    lp.frequency.value = cutoff;
+    lp.Q.value = activeTheme.id === 'neonOcean' ? 3.0
+               : activeTheme.id === 'feudalJapan' ? 2.0
+               : 0.8;
+    // Gate: opens instantly (4016 switch behavior)
     const g = ac.createGain();
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.28, t + 0.06);
-
-    src.connect(lpf); lpf.connect(g); g.connect(ac.destination);
-    src.start(t);
-    this._thrustSrc  = src;
+    g.gain.setValueAtTime(0.30, t);
+    osc.connect(lp); lp.connect(g); g.connect(ac.destination);
+    osc.start(t);
+    this._thrustSrc  = osc;
     this._thrustGain = g;
   },
 
   thrustOff() {
     if (!this._thrustGain || !audioCtx) return;
     const t = audioCtx.currentTime;
-    this._thrustGain.gain.linearRampToValueAtTime(0, t + 0.08);
+    // Short ramp prevents click but is much faster — instant gate-off feel
+    this._thrustGain.gain.linearRampToValueAtTime(0, t + 0.012);
     const src = this._thrustSrc;
-    setTimeout(() => { try { src.stop(); } catch (_) {} }, 120);
+    setTimeout(() => { try { src.stop(); } catch(_) {} }, 20);
     this._thrustSrc  = null;
     this._thrustGain = null;
   },
@@ -824,17 +787,34 @@ const sfx = {
     osc.frequency.value = isBig ? activeTheme.sfxUfoBigFreq : activeTheme.sfxUfoSmallFreq;
     const lfo     = audioCtx.createOscillator();
     const lfoGain = audioCtx.createGain();
-    lfo.frequency.value  = isBig ? 3 : 8;
-    lfoGain.gain.value   = isBig ? 60 : 80;
+    lfo.frequency.value  = isBig ? 2.5 : 9;
+    lfoGain.gain.value   = isBig ? 55 : 85;
     lfo.connect(lfoGain);
     lfoGain.connect(osc.frequency);
     const g = audioCtx.createGain();
-    g.gain.value = isBig ? 0.10 : 0.08;
+    g.gain.value = isBig ? 0.12 : 0.09;
     osc.connect(g); g.connect(audioCtx.destination);
     osc.start(t); lfo.start(t);
     this._ufoOsc  = osc;
     this._ufoLfo  = lfo;
     this._ufoGain = g;
+  },
+
+  extraLife() {
+    if (!audioCtx) return;
+    const t = audioCtx.currentTime;
+    // Same 3KHz square wave as thrust — different gate switch ($3C05)
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = 3000;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 800;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.35, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.09);
   },
 
   ufoStop() {
@@ -2084,7 +2064,7 @@ function checkCollisions() {
         if (!b.isUFO) {
           const prevScore = score;
           score += ASTEROID_SCORES[a.size];
-          if (score >= nextExtraLife) { lives = Math.min(lives + 1, 6); nextExtraLife += 10000; extraLifeMsg = 1.5; }
+          if (score >= nextExtraLife) { lives = Math.min(lives + 1, 6); nextExtraLife += 10000; extraLifeMsg = 1.5; sfx.extraLife(); }
           if (prevScore < 10000 && score >= 10000 && activeTheme.id !== 'base') {
             Steam.unlockAchievement('THEME_SCORE_10K_' + activeTheme.id.toUpperCase());
           }
@@ -2144,7 +2124,7 @@ function checkCollisions() {
         hit = true;
         const prevScore2 = score;
         score += ufo.score;
-        if (score >= nextExtraLife) { lives = Math.min(lives + 1, 6); nextExtraLife += 10000; extraLifeMsg = 1.5; }
+        if (score >= nextExtraLife) { lives = Math.min(lives + 1, 6); nextExtraLife += 10000; extraLifeMsg = 1.5; sfx.extraLife(); }
         if (prevScore2 < 10000 && score >= 10000 && activeTheme.id !== 'base') {
           Steam.unlockAchievement('THEME_SCORE_10K_' + activeTheme.id.toUpperCase());
         }
