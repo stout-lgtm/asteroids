@@ -737,39 +737,37 @@ const sfx = {
     if (this._thrustGain) return;
     const ac = ensureAudioCtx();
     if (ac.state === 'suspended') ac.resume();
-    const t = ac.currentTime;
-    // 3KHz square wave — the actual board clock
-    const osc = ac.createOscillator();
-    osc.type = 'square';
-    osc.frequency.value = 3000;
-    // Board lowpass filter shapes it into the familiar buzzy rumble
-    const lp = ac.createBiquadFilter();
-    lp.type = 'lowpass';
-    // Per-theme filter knee
-    const cutoff = activeTheme.id === 'neonOcean'   ? 340
-                 : activeTheme.id === 'psychedelic'  ? 500
-                 : activeTheme.id === 'feudalJapan'  ? 380
-                 : 420;   // base 1979 hardware filter knee
-    lp.frequency.value = cutoff;
-    lp.Q.value = activeTheme.id === 'neonOcean' ? 3.0
-               : activeTheme.id === 'feudalJapan' ? 2.0
-               : 0.8;
-    // Gate: opens instantly (4016 switch behavior)
+    const t   = ac.currentTime;
+    const src = ac.createBufferSource();
+    src.buffer = getThrustBuf();
+    src.loop   = true;
+
+    const lpf = ac.createBiquadFilter();
+    lpf.type = 'lowpass';
+    const cutoff = activeTheme.id === 'neonOcean'   ? 320
+                 : activeTheme.id === 'psychedelic'  ? 480
+                 : activeTheme.id === 'feudalJapan'  ? 360
+                 : 400;
+    lpf.frequency.value = cutoff;
+    if (activeTheme.id === 'neonOcean')    lpf.Q.value = 4.0;
+    else if (activeTheme.id === 'feudalJapan') lpf.Q.value = 2.5;
+
     const g = ac.createGain();
-    g.gain.setValueAtTime(0.30, t);
-    osc.connect(lp); lp.connect(g); g.connect(ac.destination);
-    osc.start(t);
-    this._thrustSrc  = osc;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.28, t + 0.06);
+
+    src.connect(lpf); lpf.connect(g); g.connect(ac.destination);
+    src.start(t);
+    this._thrustSrc  = src;
     this._thrustGain = g;
   },
 
   thrustOff() {
     if (!this._thrustGain || !audioCtx) return;
     const t = audioCtx.currentTime;
-    // Short ramp prevents click but is much faster — instant gate-off feel
-    this._thrustGain.gain.linearRampToValueAtTime(0, t + 0.012);
+    this._thrustGain.gain.linearRampToValueAtTime(0, t + 0.08);
     const src = this._thrustSrc;
-    setTimeout(() => { try { src.stop(); } catch(_) {} }, 20);
+    setTimeout(() => { try { src.stop(); } catch (_) {} }, 120);
     this._thrustSrc  = null;
     this._thrustGain = null;
   },
