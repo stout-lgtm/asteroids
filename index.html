@@ -2527,7 +2527,7 @@ function drawTitle() {
   // ❤️ heart — red, pulsing
   ctx.save();
   const heartX = startX + iW + gap + heartW / 2;
-  ctx.translate(heartX, titleY - heartSize * 0.32);
+  ctx.translate(heartX, titleY - heartSize * 0.08);
   ctx.scale(heartPulse, heartPulse);
   ctx.font = `${heartSize}px serif`;
   ctx.fillStyle = '#ff2244';
@@ -2951,33 +2951,37 @@ function drawStory() {
   const maxW = W - mx * 2;
 
   const lines = [
-    'In 1979, something magical happened in a noisy arcade.',
+    'I grew up poor. Not the kind you talk about — the kind',
+    'you just live in. But there was this machine.',
+    '',
+    'In the early 80s, my father brought home a standup arcade',
+    'cabinet from a charity auction. It was probably a mistake',
+    'for him. But for me, it was everything.',
     '',
     'A black-and-white screen. A tiny triangle. Rocks drifting',
-    'through the void. And the deep, slow heartbeat —',
-    'THUMP ... THUMP ... — getting faster as the danger closed in.',
+    'through the void. And that heartbeat —',
+    'THUMP ... THUMP ... — getting faster as danger closed in.',
     '',
-    'Asteroids was my first love.',
+    'In a world where confidence was hard to find, this game',
+    'gave me a place to earn it. Every wave survived, every',
+    'high score beaten — it was proof I could master something.',
+    'That feeling planted a seed.',
     '',
-    'Not the first game I played, but the first one that made me',
-    'forget where I was. The first one that made my palms sweat.',
-    'The first one where I understood, on some gut level, that',
-    'a machine could create a feeling.',
+    'That seed grew into a love for computers, for code, for',
+    'building things. It led me to computer science, to gaming,',
+    'to a career. All of it traces back to that cabinet.',
     '',
-    'This project is a love letter to that feeling.',
+    'I still have the machine. It lives with a friend in',
+    'Seattle now. But the feeling never left.',
     '',
-    'Every sound you hear — the fire, the thump, the explosion —',
-    'is reconstructed from the original analog circuits. Every',
-    'vector line glows like the phosphor on that old CRT.',
+    'This project is a love letter to that feeling — the glow',
+    'of phosphor on a CRT, the analog sounds of the original',
+    'circuits, and the kid who stood in front of that screen',
+    'and found out he was good at something.',
     '',
-    'I didn\'t build this to compete with the original.',
-    'I built it because some things deserve to be remembered.',
-    'Because somewhere, a kid is about to discover what it feels',
-    'like when the asteroids close in and the beat gets faster',
-    'and you hit hyperspace with nothing left to lose.',
-    '',
-    'This is for everyone who ever dropped a quarter in the slot',
-    'and felt the universe shrink to a single glowing screen.',
+    'This is for everyone who ever found confidence in an',
+    'unlikely place. And for my father, who brought home',
+    'what he thought was a mistake.',
     '',
     '                                    — With love, 2026',
   ];
