@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Asteroids 1979</title>
+<title>I ❤️ 1979</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #000; overflow: hidden; width: 100vw; height: 100vh; }
@@ -54,7 +54,7 @@ canvas { display: block; touch-action: none; }
 <canvas id="c"></canvas>
 <div id="splash">
   <div style="display:flex;gap:0.18em;align-items:baseline;">
-    <span class="s-title">ASTEROIDS</span><span class="s-year">&nbsp;1979</span>
+    <span class="s-title">I ❤️ 1979</span>
   </div>
   <div class="s-tap">TAP TO PLAY</div>
   <div class="s-sub">ENABLES GAME AUDIO</div>
@@ -1401,6 +1401,11 @@ window.addEventListener('keydown', e => {
   if (state === 'title') {
     if (e.code === 'Space' || e.code === 'Enter') startGame();
     if (e.code === 'KeyT') { state = 'themes'; themeSelectIndex = 0; }
+    if (e.code === 'KeyS') { state = 'story'; }
+  }
+
+  if (state === 'story') {
+    if (e.code === 'Escape' || e.code === 'Space' || e.code === 'Enter') goToTitle();
   }
 });
 
@@ -1437,11 +1442,18 @@ canvas.addEventListener('touchstart', e => {
 
   if (state === 'gameover' && gameOverDelay <= 0) { handleGameOverContinue(); return; }
 
+  if (state === 'story') { goToTitle(); return; }
+
   if (state === 'title') {
-    // Check if tap is in lower portion — open themes screen
     for (const t of e.changedTouches) {
-      if (t.clientY > canvas.height * 0.46 && t.clientY < canvas.height * 0.56) {
+      const ty = t.clientY / canvas.height;
+      // "CHANGE THE VIBE" zone
+      if (ty > 0.46 && ty < 0.53) {
         state = 'themes'; themeSelectIndex = 0; return;
+      }
+      // "THE STORY" zone
+      if (ty > 0.53 && ty < 0.60) {
+        state = 'story'; return;
       }
     }
     startGame(); return;
@@ -2489,37 +2501,52 @@ function drawTitle() {
   for (const a of asteroids) drawAsteroid(a);
   for (const p of particles) drawParticle(p);
 
-  // Title: "ASTEROIDS" fades out over time, "1979" stays solid in arcade yellow
+  // Title: "I ❤️ 1979" — a love letter to the original
   const titleSize = Math.min(62, W * 0.09);
-  ctx.font = `bold ${titleSize}px monospace`;
-  const w1 = ctx.measureText('ASTEROIDS').width;
-  const w2 = ctx.measureText(' 1979').width;
-  // As "ASTEROIDS" fades, slide "1979" toward center
-  const fullX   = W / 2 - (w1 + w2) / 2;       // left edge when both visible
-  const soloX   = W / 2 - w2 / 2;               // left edge when solo
-  const yearX   = fullX + w1 + (soloX - fullX - w1 + w2 / 2 - w2 / 2) * (1 - titleNameAlpha);
-  const titleY  = H * 0.28;
+  const heartSize = Math.min(52, W * 0.075);
+  const titleY    = H * 0.26;
 
+  // Pulsing heart — gentle scale oscillation
+  const heartPulse = 1 + Math.sin(titleHeartPhase) * 0.08;
+
+  ctx.textAlign = 'center';
+  setGlow(8);
+
+  // "I" in white
+  ctx.font      = `bold ${titleSize}px monospace`;
+  ctx.fillStyle = '#fff';
+  const iW     = ctx.measureText('I').width;
+  const heartW = heartSize * 1.1;
+  const yearW  = ctx.measureText('1979').width;
+  const gap    = titleSize * 0.35;
+  const totalW = iW + gap + heartW + gap + yearW;
+  const startX = W / 2 - totalW / 2;
+
+  ctx.fillText('I', startX + iW / 2, titleY);
+
+  // ❤️ heart — red, pulsing
+  ctx.save();
+  const heartX = startX + iW + gap + heartW / 2;
+  ctx.translate(heartX, titleY - heartSize * 0.32);
+  ctx.scale(heartPulse, heartPulse);
+  ctx.font = `${heartSize}px serif`;
+  ctx.fillStyle = '#ff2244';
+  ctx.shadowColor = '#ff2244';
+  ctx.shadowBlur  = 14;
+  ctx.fillText('❤', 0, 0);
+  ctx.restore();
+
+  // "1979" in arcade yellow (or themed)
   setGlow(6);
-  ctx.textAlign = 'left';
-
-  // "ASTEROIDS" — fades out
-  if (titleNameAlpha > 0) {
-    ctx.globalAlpha = titleNameAlpha;
-    ctx.fillStyle   = '#fff';
-    ctx.fillText('ASTEROIDS', fullX, titleY);
-    ctx.globalAlpha = 1;
-  }
-
-  // "1979" — always solid, drifts to center as name fades
+  ctx.font = `bold ${titleSize}px monospace`;
   const yearColor = activeTheme.id === 'base'       ? '#FFD700'
     : activeTheme.id === 'neonOcean'                 ? '#00ffcc'
     : activeTheme.id === 'feudalJapan'               ? '#cc4400'
     : hslRotate('#FFD700', psychHue);
   ctx.fillStyle = yearColor;
-  ctx.fillText(' 1979', titleNameAlpha > 0 ? fullX + w1 : soloX, titleY);
+  ctx.fillText('1979', startX + iW + gap + heartW + gap + yearW / 2, titleY);
 
-  // Theme name badge below the year
+  // Theme name badge below the title
   if (activeTheme.id !== 'base') {
     const badgeY = titleY + titleSize * 0.5;
     ctx.font = `${Math.min(26, W * 0.040)}px monospace`;
@@ -2539,11 +2566,17 @@ function drawTitle() {
 
   ctx.fillStyle = '#FFD700';
   ctx.font = `bold ${Math.min(21, W * 0.034)}px monospace`;
-  ctx.fillText(isMobile ? 'CHANGE THE VIBE' : 'T \u2014 CHANGE THE VIBE', W / 2, H * 0.52);
+  ctx.fillText(isMobile ? 'CHANGE THE VIBE' : 'T \u2014 CHANGE THE VIBE', W / 2, H * 0.50);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = '16px monospace';
-  ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.58);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.font = `${Math.min(18, W * 0.030)}px monospace`;
+  ctx.fillText(isMobile ? 'THE STORY' : 'S \u2014 THE STORY', W / 2, H * 0.56);
+
+  if (!isMobile) {
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.font = '14px monospace';
+    ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.61);
+  }
 
   // Mini leaderboard peek — top 3 scores
   const lb = lbLoad();
@@ -2845,8 +2878,9 @@ function startGame() {
   music.start();
 }
 
-let titleNameAlpha     = 1;    // opacity of "ASTEROIDS" — fades to ghost (not zero)
-let titleNameFadeDelay = 2.2;  // seconds before fade begins
+let titleNameAlpha     = 1;    // legacy — kept for compatibility
+let titleNameFadeDelay = 2.2;  // legacy
+let titleHeartPhase    = 0;    // heart pulse oscillator
 
 function initTitle() {
   loadSavedTheme();
@@ -2859,9 +2893,82 @@ function initTitle() {
   bullets   = [];
   titleNameAlpha     = 1;
   titleNameFadeDelay = 2.2;
+  titleHeartPhase    = 0;
   for (let i = 0; i < 6; i++) {
     asteroids.push(makeAsteroid(rand(0, canvas.width), rand(0, canvas.height), 'large'));
   }
+}
+
+// ─── Story screen ─────────────────────────────────────────────────────────────
+function drawStory() {
+  W = canvas.width; H = canvas.height;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+
+  const mx    = Math.max(40, W * 0.12);   // left/right margin
+  const lineH = Math.min(22, H * 0.032);  // line spacing
+  let   y     = H * 0.08;
+
+  // Title
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff2244';
+  ctx.font = `bold ${Math.min(32, W * 0.052)}px monospace`;
+  setGlow(10);
+  ctx.shadowColor = '#ff2244';
+  ctx.fillText('THE STORY', W / 2, y);
+  clearGlow();
+  y += lineH * 2.5;
+
+  // The letter
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.font = `${Math.min(15, W * 0.024)}px monospace`;
+  const maxW = W - mx * 2;
+
+  const lines = [
+    'In 1979, something magical happened in a noisy arcade.',
+    '',
+    'A black-and-white screen. A tiny triangle. Rocks drifting',
+    'through the void. And the deep, slow heartbeat —',
+    'THUMP ... THUMP ... — getting faster as the danger closed in.',
+    '',
+    'Asteroids was my first love.',
+    '',
+    'Not the first game I played, but the first one that made me',
+    'forget where I was. The first one that made my palms sweat.',
+    'The first one where I understood, on some gut level, that',
+    'a machine could create a feeling.',
+    '',
+    'This project is a love letter to that feeling.',
+    '',
+    'Every sound you hear — the fire, the thump, the explosion —',
+    'is reconstructed from the original analog circuits. Every',
+    'vector line glows like the phosphor on that old CRT.',
+    '',
+    'I didn\'t build this to compete with the original.',
+    'I built it because some things deserve to be remembered.',
+    'Because somewhere, a kid is about to discover what it feels',
+    'like when the asteroids close in and the beat gets faster',
+    'and you hit hyperspace with nothing left to lose.',
+    '',
+    'This is for everyone who ever dropped a quarter in the slot',
+    'and felt the universe shrink to a single glowing screen.',
+    '',
+    '                                    — With love, 2026',
+  ];
+
+  for (const line of lines) {
+    if (y > H * 0.92) break;  // don't overflow past footer
+    ctx.fillText(line, mx, y);
+    y += lineH;
+  }
+
+  // Footer
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#444';
+  ctx.font = '13px monospace';
+  ctx.fillText(isMobile ? 'TAP ANYWHERE TO RETURN' : 'PRESS SPACE OR ESC TO RETURN', W / 2, H * 0.96);
 }
 
 // ─── Main loop ────────────────────────────────────────────────────────────────
@@ -2879,12 +2986,8 @@ function loop(ts) {
     for (const a of asteroids) updateAsteroid(a, dt);
     for (const p of particles) updateParticle(p, dt);
     particles = particles.filter(p => p.life > 0);
-    // Fade "ASTEROIDS" out after a delay, leaving just "1979"
-    if (titleNameFadeDelay > 0) {
-      titleNameFadeDelay -= dt;
-    } else {
-      titleNameAlpha = Math.max(0.14, titleNameAlpha - dt * 0.55);
-    }
+    // Pulse the heart on the title screen
+    titleHeartPhase += dt * 3.2;  // ~0.5Hz pulse
     drawTitle();
     return;
   }
@@ -2892,6 +2995,12 @@ function loop(ts) {
   // ── Theme select ──
   if (state === 'themes') {
     drawThemeSelect();
+    return;
+  }
+
+  // ── Story screen ──
+  if (state === 'story') {
+    drawStory();
     return;
   }
 
