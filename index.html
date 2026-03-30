@@ -1447,12 +1447,12 @@ canvas.addEventListener('touchstart', e => {
   if (state === 'title') {
     for (const t of e.changedTouches) {
       const ty = t.clientY / canvas.height;
-      // "CHANGE THE VIBE" zone
-      if (ty > 0.46 && ty < 0.53) {
+      // "CHANGE THE VIBE" zone (~menuY0 + menuGap area)
+      if (ty > 0.48 && ty < 0.58) {
         state = 'themes'; themeSelectIndex = 0; return;
       }
-      // "THE STORY" zone
-      if (ty > 0.53 && ty < 0.60) {
+      // "THE STORY" zone (~menuY0 + menuGap*2 area)
+      if (ty > 0.58 && ty < 0.68) {
         state = 'story'; return;
       }
     }
@@ -2560,22 +2560,40 @@ function drawTitle() {
   clearGlow();
   ctx.textAlign = 'center';
 
+  // ── Menu items — consistent layout ───────────────────────────────────────
+  const menuSize = Math.min(20, W * 0.032);
+  const menuY0   = H * 0.42;
+  const menuGap  = menuSize * 2.2;
+
+  // Play
   ctx.fillStyle = '#fff';
-  ctx.font = `${Math.min(28, W * 0.046)}px monospace`;
-  ctx.fillText(isMobile ? 'TAP TO START' : 'PRESS SPACE OR ENTER', W / 2, H * 0.44);
+  ctx.font = `bold ${menuSize}px monospace`;
+  ctx.fillText('PLAY', W / 2, menuY0);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
+  ctx.fillText(isMobile ? 'TAP TO START' : '[SPACE / ENTER]', W / 2, menuY0 + menuSize * 0.9);
 
+  // Change the Vibe
   ctx.fillStyle = '#FFD700';
-  ctx.font = `bold ${Math.min(21, W * 0.034)}px monospace`;
-  ctx.fillText(isMobile ? 'CHANGE THE VIBE' : 'T \u2014 CHANGE THE VIBE', W / 2, H * 0.50);
+  ctx.font = `bold ${menuSize}px monospace`;
+  ctx.fillText('CHANGE THE VIBE', W / 2, menuY0 + menuGap);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
+  ctx.fillText(isMobile ? 'TAP HERE' : '[T]', W / 2, menuY0 + menuGap + menuSize * 0.9);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  ctx.font = `${Math.min(18, W * 0.030)}px monospace`;
-  ctx.fillText(isMobile ? 'THE STORY' : 'S \u2014 THE STORY', W / 2, H * 0.56);
+  // The Story
+  ctx.fillStyle = 'rgba(255,255,255,0.65)';
+  ctx.font = `bold ${menuSize}px monospace`;
+  ctx.fillText('THE STORY', W / 2, menuY0 + menuGap * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
+  ctx.fillText(isMobile ? 'TAP HERE' : '[S]', W / 2, menuY0 + menuGap * 2 + menuSize * 0.9);
 
+  // Controls
   if (!isMobile) {
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.font = '14px monospace';
-    ctx.fillText('WASD / ARROWS: MOVE   SPACE: FIRE   H: HYPERSPACE', W / 2, H * 0.61);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.font = `${Math.min(12, W * 0.018)}px monospace`;
+    ctx.fillText('WASD / ARROWS: MOVE    SPACE: FIRE    H: HYPERSPACE', W / 2, menuY0 + menuGap * 3);
   }
 
   // Mini leaderboard peek — top 3 scores
@@ -2583,14 +2601,14 @@ function drawTitle() {
   if (lb.length > 0) {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 16px monospace';
-    ctx.fillText('— HALL OF FAME —', W / 2, H * 0.63);
+    ctx.fillText('— HALL OF FAME —', W / 2, H * 0.78);
     ctx.font = '15px monospace';
     const show = lb.slice(0, 3);
     show.forEach((e, i) => {
       ctx.fillStyle = i === 0 ? '#fff' : '#aaa';
       ctx.fillText(
         `${i + 1}.  ${e.name.padEnd(12)}  ${String(e.score).padStart(6)}`,
-        W / 2, H * 0.70 + i * 22
+        W / 2, H * 0.84 + i * 20
       );
     });
   }
@@ -2598,7 +2616,7 @@ function drawTitle() {
   if (hiScore > 0 && lb.length === 0) {
     ctx.fillStyle = '#fff';
     ctx.font = '18px monospace';
-    ctx.fillText('HI SCORE: ' + hiScore, W / 2, H * 0.70);
+    ctx.fillText('HI SCORE: ' + hiScore, W / 2, H * 0.84);
   }
 }
 
