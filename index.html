@@ -495,10 +495,10 @@ const Steam = {
 // ─── Theme select screen ─────────────────────────────────────────
 let themeSelectIndex = 0;
 const THEME_LIST = [
-  { id: 'base',        name: '1979',       price: null,   desc: 'THE ORIGINAL' },
-  { id: 'neonOcean',   name: 'NEON OCEAN', price: '$0.99', desc: 'DEEP SEA VECTOR' },
-  { id: 'psychedelic', name: 'PSYCHEDELIC', price: '$0.99', desc: 'FRACTAL SPACE' },
-  { id: 'feudalJapan', name: 'FEUDAL JAPAN', price: '$0.99', desc: 'INK & STEEL' },
+  { id: 'base',        name: '1979',       desc: 'THE ORIGINAL' },
+  { id: 'neonOcean',   name: 'NEON OCEAN', desc: 'DEEP SEA VECTOR' },
+  { id: 'psychedelic', name: 'PSYCHEDELIC', desc: 'FRACTAL SPACE' },
+  { id: 'feudalJapan', name: 'FEUDAL JAPAN', desc: 'INK & STEEL' },
 ];
 
 const MAX_LB_ENTRIES = 10;
@@ -2539,7 +2539,7 @@ function drawTitle() {
 
   ctx.fillStyle = '#FFD700';
   ctx.font = `bold ${Math.min(21, W * 0.034)}px monospace`;
-  ctx.fillText(isMobile ? 'VIBE PACKS' : 'T \u2014 VIBE PACKS', W / 2, H * 0.52);
+  ctx.fillText(isMobile ? 'CHANGE THE VIBE' : 'T \u2014 CHANGE THE VIBE', W / 2, H * 0.52);
 
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.font = '16px monospace';
@@ -2646,7 +2646,7 @@ function drawThemeSelect() {
   ctx.fillStyle = '#fff';
   ctx.font = `bold ${Math.min(41, W * 0.067)}px monospace`;
   setGlow(6);
-  ctx.fillText('VIBE PACKS', W / 2, H * 0.14);
+  ctx.fillText('CHANGE THE VIBE', W / 2, H * 0.14);
   clearGlow();
 
   const rowH   = Math.min(H * 0.19, 108);
@@ -2669,11 +2669,11 @@ function drawThemeSelect() {
 
     // Left: theme name + description
     ctx.textAlign = 'left';
-    ctx.fillStyle = active ? '#FFD700' : owned ? '#fff' : '#555';
+    ctx.fillStyle = active ? '#FFD700' : '#fff';
     ctx.font = `bold ${Math.min(28, W * 0.042)}px monospace`;
     ctx.fillText(pack.name, padX + 16, y + rowH * 0.40);
 
-    ctx.fillStyle = active ? '#ccaa00' : owned ? '#aaa' : '#444';
+    ctx.fillStyle = active ? '#ccaa00' : '#aaa';
     ctx.font = `${Math.min(16, W * 0.024)}px monospace`;
     ctx.fillText(pack.desc, padX + 16, y + rowH * 0.70);
 
@@ -2684,17 +2684,10 @@ function drawThemeSelect() {
       ctx.fillStyle = '#FFD700';
       ctx.font = `bold ${Math.min(14, W * 0.022)}px monospace`;
       ctx.fillText('ACTIVE', badgeX, y + rowH * 0.52);
-    } else if (owned) {
+    } else {
       ctx.fillStyle = '#aaa';
       ctx.font = `${Math.min(14, W * 0.022)}px monospace`;
       ctx.fillText('SELECT', badgeX, y + rowH * 0.52);
-    } else {
-      ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.min(16, W * 0.025)}px monospace`;
-      ctx.fillText(pack.price, badgeX, y + rowH * 0.42);
-      ctx.fillStyle = '#555';
-      ctx.font = `${Math.min(12, W * 0.018)}px monospace`;
-      ctx.fillText('TAP TO UNLOCK', badgeX, y + rowH * 0.66);
     }
 
     // Divider
@@ -2711,15 +2704,9 @@ function drawThemeSelect() {
   ctx.fillStyle = '#333';
   ctx.font = '13px monospace';
   const footer = isMobile
-    ? 'TAP ROW TO SELECT \u2022 RESTORE PURCHASES BELOW'
+    ? 'TAP ROW TO SELECT'
     : 'ARROW KEYS TO NAVIGATE   ENTER TO SELECT   ESC TO BACK';
   ctx.fillText(footer, W / 2, H * 0.88);
-
-  if (isMobile) {
-    ctx.fillStyle = '#222';
-    ctx.font = '12px monospace';
-    ctx.fillText('RESTORE PURCHASES', W / 2, H * 0.94);
-  }
 }
 
 function handleThemesTouch(e) {
@@ -2729,9 +2716,6 @@ function handleThemesTouch(e) {
 
   for (const t of e.changedTouches) {
     const ty = t.clientY;
-
-    // Restore purchases tap area
-    if (ty > H * 0.91) { DLC.restore(); return; }
 
     const i = Math.floor((ty - startY) / rowH);
     if (i >= 0 && i < THEME_LIST.length) {
@@ -2745,20 +2729,11 @@ function activateOrPurchasePack(index) {
   const pack = THEME_LIST[index];
   if (!pack) return;
 
-  if (DLC.isUnlocked(pack.id)) {
-    setTheme(pack.id);
-    // If a theme changes audio context settings, restart UFO sound
-    if (ufo) { sfx.ufoStop(); sfx.ufoStart(ufo.type); }
-    // Return to title screen so the player can see the theme applied
-    goToTitle();
-  } else {
-    DLC.purchase(pack.id, () => {
-      // onSuccess callback — called by Steam/IAP wrapper on completion
-      try { localStorage.setItem('1979_dlc_' + pack.id, '1'); } catch (_) {}
-      setTheme(pack.id);
-      goToTitle();
-    });
-  }
+  setTheme(pack.id);
+  // If a theme changes audio context settings, restart UFO sound
+  if (ufo) { sfx.ufoStop(); sfx.ufoStart(ufo.type); }
+  // Return to title screen so the player can see the theme applied
+  goToTitle();
 }
 
 function drawLeaderboard() {
