@@ -2561,9 +2561,9 @@ function drawTitle() {
   ctx.textAlign = 'center';
 
   // ── Menu items — consistent layout ───────────────────────────────────────
-  const menuSize = Math.min(20, W * 0.032);
-  const menuY0   = H * 0.42;
-  const menuGap  = menuSize * 2.2;
+  const menuSize = Math.min(18, W * 0.030);
+  const menuY0   = H * 0.40;
+  const menuGap  = menuSize * 2.0;
 
   // Play
   ctx.fillStyle = '#fff';
@@ -2601,14 +2601,14 @@ function drawTitle() {
   if (lb.length > 0) {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 16px monospace';
-    ctx.fillText('— HALL OF FAME —', W / 2, H * 0.78);
+    ctx.fillText('— HALL OF FAME —', W / 2, H * 0.68);
     ctx.font = '15px monospace';
     const show = lb.slice(0, 3);
     show.forEach((e, i) => {
       ctx.fillStyle = i === 0 ? '#fff' : '#aaa';
       ctx.fillText(
         `${i + 1}.  ${e.name.padEnd(12)}  ${String(e.score).padStart(6)}`,
-        W / 2, H * 0.84 + i * 20
+        W / 2, H * 0.73 + i * 20
       );
     });
   }
@@ -2616,7 +2616,7 @@ function drawTitle() {
   if (hiScore > 0 && lb.length === 0) {
     ctx.fillStyle = '#fff';
     ctx.font = '18px monospace';
-    ctx.fillText('HI SCORE: ' + hiScore, W / 2, H * 0.84);
+    ctx.fillText('HI SCORE: ' + hiScore, W / 2, H * 0.73);
   }
 }
 
