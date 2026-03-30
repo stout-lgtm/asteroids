@@ -610,66 +610,92 @@ const sfx = {
   explode(size) {
     if (!audioCtx) return;
     const t = audioCtx.currentTime;
-    // Register $3600 value determines starting freq and volume.
-    // Large = $0F (max), Medium = $08, Small = $03 (from schematic).
+
+    // ── Configuration per asteroid size ────────────────────────────────────
+    // Hardware coupling: filter cutoff AND gain follow the SAME exponential
+    // decay via shared RC circuit. Both start at maximum instantly (no ramp).
     const cfg = {
-      large:  { startFreq: 4800, endFreq: 55,  vol: 0.90, dur: 0.95 },
-      medium: { startFreq: 2400, endFreq: 90,  vol: 0.65, dur: 0.55 },
-      small:  { startFreq: 1200, endFreq: 200, vol: 0.42, dur: 0.22 },
-    }[size] || { startFreq: 3000, endFreq: 80, vol: 0.7, dur: 0.7 };
-    // Noise source — board uses a shift register noise generator
+      large: {
+        fStart: 7200, fEnd: 38,  vol: 1.05, dur: 1.05,
+        body:   { freq: 52, fEnd: 20, vol: 0.6, dur: 0.4 },
+      },
+      medium: {
+        fStart: 4500, fEnd: 75,  vol: 0.78, dur: 0.52,
+        body:   null,
+      },
+      small: {
+        fStart: 3200, fEnd: 380, vol: 0.52, dur: 0.14,
+        body:   null,
+      },
+    }[size] || { fStart: 4000, fEnd: 60, vol: 0.8, dur: 0.7, body: null };
+
+    // ── Layer 1: Main noise burst through voltage-controlled lowpass ────────
     const src = audioCtx.createBufferSource();
-    src.buffer = makeNoiseBuf(cfg.dur + 0.05);
-    // Voltage-controlled lowpass — cutoff and gain track together
+    src.buffer = makeNoiseBuf(cfg.dur + 0.06);
+
     const filt = audioCtx.createBiquadFilter();
-    filt.type = 'lowpass';
-    filt.frequency.setValueAtTime(cfg.startFreq, t);
-    filt.frequency.exponentialRampToValueAtTime(cfg.endFreq, t + cfg.dur);
-    filt.Q.value = 0.5;   // gentle slope — analog hardware characteristic
-    // Volume tracks the filter (coupled via same RC decay on board)
+    filt.type     = 'lowpass';
+    filt.Q.value  = 1.4;    // slight resonance at cutoff — analog character
+    filt.frequency.setValueAtTime(cfg.fStart, t);
+    filt.frequency.exponentialRampToValueAtTime(cfg.fEnd, t + cfg.dur);
+
     const g = audioCtx.createGain();
+    // INSTANT full-volume attack — no ramp from 0
     g.gain.setValueAtTime(cfg.vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + cfg.dur);
+
     src.connect(filt); filt.connect(g); g.connect(audioCtx.destination);
-    src.start(t); src.stop(t + cfg.dur + 0.05);
-    // Theme-specific overlays
-    if (size === 'large') {
-      if (activeTheme.id === 'neonOcean') {
-        const osc = audioCtx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(48, t);
-        osc.frequency.exponentialRampToValueAtTime(20, t + 0.4);
-        const gw = audioCtx.createGain();
-        gw.gain.setValueAtTime(0.35, t);
-        gw.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-        osc.connect(gw); gw.connect(audioCtx.destination);
-        osc.start(t); osc.stop(t + 0.42);
-      }
-      if (activeTheme.id === 'feudalJapan') {
-        const drumBuf = makeNoiseBuf(0.5);
-        const drum = audioCtx.createBufferSource();
-        drum.buffer = drumBuf;
-        const drumLp = audioCtx.createBiquadFilter();
-        drumLp.type = 'lowpass';
-        drumLp.frequency.setValueAtTime(180, t);
-        drumLp.frequency.exponentialRampToValueAtTime(40, t + 0.5);
-        const drumG = audioCtx.createGain();
-        drumG.gain.setValueAtTime(0.55, t);
-        drumG.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
-        const body = audioCtx.createOscillator();
-        body.type = 'sine';
-        body.frequency.setValueAtTime(65, t);
-        body.frequency.exponentialRampToValueAtTime(30, t + 0.3);
-        const bodyG = audioCtx.createGain();
-        bodyG.gain.setValueAtTime(0.35, t);
-        bodyG.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-        drum.connect(drumLp); drumLp.connect(drumG); drumG.connect(audioCtx.destination);
-        body.connect(bodyG); bodyG.connect(audioCtx.destination);
-        drum.start(t); drum.stop(t + 0.55);
-        body.start(t); body.stop(t + 0.35);
-      }
+    src.start(t); src.stop(t + cfg.dur + 0.06);
+
+    // ── Layer 2: Sub-bass oscillator body (large only) ─────────────────────
+    if (cfg.body) {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(cfg.body.freq, t);
+      osc.frequency.exponentialRampToValueAtTime(cfg.body.fEnd, t + cfg.body.dur);
+      const gBody = audioCtx.createGain();
+      gBody.gain.setValueAtTime(cfg.body.vol, t);
+      gBody.gain.exponentialRampToValueAtTime(0.001, t + cfg.body.dur);
+      osc.connect(gBody); gBody.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + cfg.body.dur + 0.02);
     }
-    if (size === 'medium' && activeTheme.id === 'psychedelic') {
+
+    // ── Theme-specific additions ───────────────────────────────────────────
+    if (activeTheme.id === 'neonOcean' && size === 'large') {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(48, t);
+      osc.frequency.exponentialRampToValueAtTime(18, t + 0.4);
+      const gw = audioCtx.createGain();
+      gw.gain.setValueAtTime(0.35, t);
+      gw.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      osc.connect(gw); gw.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.42);
+    }
+    if (activeTheme.id === 'feudalJapan' && size === 'large') {
+      const drumBuf = makeNoiseBuf(0.5);
+      const drum = audioCtx.createBufferSource();
+      drum.buffer = drumBuf;
+      const drumLp = audioCtx.createBiquadFilter();
+      drumLp.type = 'lowpass';
+      drumLp.frequency.setValueAtTime(180, t);
+      drumLp.frequency.exponentialRampToValueAtTime(40, t + 0.5);
+      const drumG = audioCtx.createGain();
+      drumG.gain.setValueAtTime(0.55, t);
+      drumG.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      const body2 = audioCtx.createOscillator();
+      body2.type = 'sine';
+      body2.frequency.setValueAtTime(65, t);
+      body2.frequency.exponentialRampToValueAtTime(30, t + 0.3);
+      const bodyG2 = audioCtx.createGain();
+      bodyG2.gain.setValueAtTime(0.35, t);
+      bodyG2.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+      drum.connect(drumLp); drumLp.connect(drumG); drumG.connect(audioCtx.destination);
+      body2.connect(bodyG2); bodyG2.connect(audioCtx.destination);
+      drum.start(t); drum.stop(t + 0.55);
+      body2.start(t); body2.stop(t + 0.35);
+    }
+    if (activeTheme.id === 'psychedelic' && size === 'medium') {
       const osc = audioCtx.createOscillator();
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(320, t);
@@ -684,26 +710,25 @@ const sfx = {
 
   beat(freq) {
     if (!audioCtx) return;
-    const t = audioCtx.currentTime;
-    // 555 timer output — square wave, not sine
+    const t   = audioCtx.currentTime;
+    // 555 timer = square wave output
     const osc = audioCtx.createOscillator();
-    osc.type = 'square';
+    osc.type            = 'square';
     osc.frequency.value = freq;
-    // Short sharp envelope — 555 pulse character
+    // Short lowpass to shape the square without killing the punch
+    const lp = audioCtx.createBiquadFilter();
+    lp.type             = 'lowpass';
+    lp.frequency.value  = 520;
+    lp.Q.value          = 1.8;
     const g = audioCtx.createGain();
     g.gain.setValueAtTime(0.55, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    // Board output filter — softens square without losing punch
-    const lp = audioCtx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 600;
-    lp.Q.value = 1.2;
     osc.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
     osc.start(t); osc.stop(t + 0.13);
-    // Psychedelic: harmonized overtone
+    // Psychedelic overtone
     if (activeTheme.id === 'psychedelic') {
       const osc2 = audioCtx.createOscillator();
-      osc2.type = 'square';
+      osc2.type           = 'sine';
       osc2.frequency.value = freq * 1.5;
       const g2 = audioCtx.createGain();
       g2.gain.setValueAtTime(0.12, t);
@@ -2164,6 +2189,21 @@ function checkCollisions() {
 function killShip() {
   sfx.thrustOff();
   sfx.explode('large');
+  // Ship explosion: extra mid-crack layer to distinguish "you died" from "rock broke"
+  if (audioCtx) {
+    const t = audioCtx.currentTime;
+    const src = audioCtx.createBufferSource();
+    src.buffer = makeNoiseBuf(0.25);
+    const bp = audioCtx.createBiquadFilter();
+    bp.type           = 'bandpass';
+    bp.frequency.value = 800;
+    bp.Q.value         = 0.8;
+    const gs = audioCtx.createGain();
+    gs.gain.setValueAtTime(0.65, t);
+    gs.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    src.connect(bp); bp.connect(gs); gs.connect(audioCtx.destination);
+    src.start(t); src.stop(t + 0.27);
+  }
   // Spawn shards along the ship's 4 edges flying outward
   for (let i = 0; i < 4; i++) {
     const angle = ship.angle + (i / 4) * TAU;
