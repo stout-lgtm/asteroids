@@ -2560,34 +2560,40 @@ function drawTitle() {
   clearGlow();
   ctx.textAlign = 'center';
 
-  // ── Menu items — consistent layout ───────────────────────────────────────
+  // ── Menu items — label left-center, key hint to the right ────────────────
   const menuSize = Math.min(18, W * 0.030);
+  const hintSize = Math.min(13, W * 0.020);
   const menuY0   = H * 0.40;
-  const menuGap  = menuSize * 2.0;
+  const menuGap  = menuSize * 1.8;
 
-  // Play
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${menuSize}px monospace`;
-  ctx.fillText('PLAY', W / 2, menuY0);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
-  ctx.fillText(isMobile ? 'TAP TO START' : '[SPACE / ENTER]', W / 2, menuY0 + menuSize * 0.9);
+  function menuRow(label, hint, y, labelColor) {
+    ctx.font      = `bold ${menuSize}px monospace`;
+    ctx.fillStyle = labelColor;
+    const labelW  = ctx.measureText(label).width;
+    ctx.font      = `${hintSize}px monospace`;
+    const hintW   = isMobile ? 0 : ctx.measureText(hint).width;
+    const pad     = isMobile ? 0 : menuSize * 0.8;
+    const totalW  = labelW + pad + hintW;
+    const lx      = W / 2 - totalW / 2;
 
-  // Change the Vibe
-  ctx.fillStyle = '#FFD700';
-  ctx.font = `bold ${menuSize}px monospace`;
-  ctx.fillText('CHANGE THE VIBE', W / 2, menuY0 + menuGap);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
-  ctx.fillText(isMobile ? 'TAP HERE' : '[T]', W / 2, menuY0 + menuGap + menuSize * 0.9);
+    ctx.font      = `bold ${menuSize}px monospace`;
+    ctx.fillStyle = labelColor;
+    ctx.textAlign = 'left';
+    ctx.fillText(label, lx, y);
 
-  // The Story
-  ctx.fillStyle = 'rgba(255,255,255,0.65)';
-  ctx.font = `bold ${menuSize}px monospace`;
-  ctx.fillText('THE STORY', W / 2, menuY0 + menuGap * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = `${Math.min(13, W * 0.020)}px monospace`;
-  ctx.fillText(isMobile ? 'TAP HERE' : '[S]', W / 2, menuY0 + menuGap * 2 + menuSize * 0.9);
+    if (!isMobile) {
+      ctx.font      = `${hintSize}px monospace`;
+      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      ctx.textAlign = 'left';
+      ctx.fillText(hint, lx + labelW + pad, y);
+    }
+  }
+
+  menuRow('PLAY',            '[SPACE / ENTER]', menuY0,              '#fff');
+  menuRow('CHANGE THE VIBE', '[T]',             menuY0 + menuGap,     '#FFD700');
+  menuRow('THE STORY',       '[S]',             menuY0 + menuGap * 2, 'rgba(255,255,255,0.65)');
+
+  ctx.textAlign = 'center';
 
   // Controls
   if (!isMobile) {
